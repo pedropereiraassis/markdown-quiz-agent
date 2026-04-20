@@ -1,18 +1,19 @@
 # Claude Code Guidance
 
 ## Role
-Build this project as a small, spec-driven Node.js/TypeScript application.
+Build this project as a small, spec-driven Node.js/TypeScript CLI application for generating source-grounded quizzes from Markdown.
 
 `SPEC.md` is the product source of truth.
 This file is Claude-specific persistent implementation guidance.
 
 ## Project Priorities
 1. End-to-end working CLI first
-2. Deterministic scoring correctness
-3. Strict quiz schema validation
-4. Safe remote Markdown ingestion
-5. Small, explainable changes
+2. Source-grounded quiz quality
+3. Deterministic scoring correctness
+4. Strict quiz schema validation
+5. Safe remote Markdown ingestion
 6. Predictable memory behavior
+7. Small, explainable changes
 
 ## Final Stack
 - Runtime: Node.js `24 LTS`
@@ -67,20 +68,31 @@ If OpenRouter is enabled:
 ## Scoring Rules
 Implement exactly this logic.
 
+Keep implementation exact, but keep user-facing explanations simple and non-formulaic.
+
 For single-answer questions:
 - if selected option set equals correct option set, award `4`
 - otherwise award `0`
 
 For multiple-answer questions:
-- `TP = |selected ∩ correct|`
-- `FP = |selected \ correct|`
-- `score = clamp(0, 4 * (TP - FP) / |correct|, 4)`
+- count correct selections
+- count wrong extra selections
+- subtract wrong extras from correct selections
+- scale that result to the `0` to `4` range based on how many correct answers exist
+- clamp the final result to stay between `0` and `4`
 
 Final score:
-- `w_i = 1.0 * (1.1 ^ (i - 1))`
-- `finalScore = sum(score_i * w_i) / sum(w_i)`
+- first question weight = `1.0`
+- each next question weight = previous weight plus `10%`
+- final score = weighted average of question scores
 
 Never reinterpret these rules without updating `SPEC.md`.
+
+User-facing result expectations:
+- show per-question points and a final numeric score
+- explain partial credit in plain language
+- mention that later questions count slightly more
+- do not show formulas in the quiz flow
 
 ## Remote Markdown Rules
 Always enforce:
@@ -100,18 +112,22 @@ GitHub normalization:
 
 ## Implementation Workflow
 1. Read `SPEC.md`
-2. Pick the smallest vertical slice
-3. Write tests first for deterministic logic
-4. Implement the slice
-5. Run the smallest relevant verification first
-6. Run broader repo checks when the slice is integrated
-7. Report what changed and any tradeoffs
+2. Read the approved PRD before changing product-facing behavior
+3. Pick the smallest vertical slice
+4. Write tests first for deterministic logic
+5. Implement the slice
+6. Run the smallest relevant verification first
+7. Run broader repo checks when the slice is integrated
+8. Report what changed and any tradeoffs
 
 ## Verification Expectations
-Use:
-- `pnpm test`
-- `pnpm typecheck`
-- `pnpm build` when integration is ready
+Use the smallest direct verification command that fits the current repo state.
+Do not assume `package.json` scripts exist yet.
+
+Typical examples:
+- `npx vitest`
+- `npx tsc --noEmit`
+- a future build command once build scripts exist
 
 Focus test coverage on:
 - scoring math
@@ -126,6 +142,8 @@ Focus test coverage on:
 - Keep CLI concerns out of domain logic
 - Keep DB and network code out of scoring logic
 - Preserve room to replace the CLI with HTTP/UI later
+- Keep product language focused on a compact source-grounded quiz tool
+- Avoid product wording about interviews, hiring exercises, or evaluation ceremonies
 
 ## Memory / Performance Safety
 Always evaluate whether a change increases:

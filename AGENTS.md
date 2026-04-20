@@ -5,11 +5,12 @@ This file is Codex-specific repo guidance.
 
 ## Priorities
 1. Working end-to-end CLI
-2. Exact scoring correctness
-3. Strict schema validation
-4. Safe remote Markdown ingestion
-5. Small, explainable changes
+2. Source-grounded quiz quality
+3. Exact scoring correctness
+4. Strict schema validation
+5. Safe remote Markdown ingestion
 6. Predictable memory behavior
+7. Small, explainable changes
 
 ## Stack
 - Node.js 24 LTS
@@ -38,18 +39,28 @@ Do not add extra architecture layers unless they clearly simplify the code.
 
 ## Rules That Must Not Drift
 ### Scoring
+Keep the scoring math exact, but keep user-facing explanations simple.
+
 Single-answer:
 - exact match => `4`
 - otherwise => `0`
 
 Multiple-answer:
-- `TP = |selected ∩ correct|`
-- `FP = |selected \ correct|`
-- `score = clamp(0, 4 * (TP - FP) / |correct|, 4)`
+- count correct selections
+- count wrong extra selections
+- subtract wrong extras from correct selections
+- scale that result to the `0` to `4` range based on how many correct answers exist
+- clamp the final result to stay between `0` and `4`
 
 Final weighted score:
-- `w_i = 1.0 * (1.1 ^ (i - 1))`
-- `finalScore = sum(score_i * w_i) / sum(w_i)`
+- first question weight = `1.0`
+- each next question weight = previous weight plus `10%`
+- final score = weighted average of question scores
+
+User-facing result copy:
+- show per-question points and final numeric score
+- explain partial credit and wrong extra selections in plain language
+- do not show formulas in the quiz flow
 
 ### Remote markdown ingestion
 Always enforce:
@@ -75,17 +86,22 @@ If OpenRouter is used:
 
 ## Workflow
 - Read `SPEC.md` before coding
+- Read the approved PRD before changing product-facing behavior
 - Prefer the smallest coherent vertical slice
 - Test deterministic logic first
 - Run the smallest relevant verification first, then broader checks
+- Do not assume `package.json` scripts exist yet; use the simplest direct command until scripts are added
 - Keep progress updates concise
 - Do not auto-commit
+- Keep product copy focused on a compact source-grounded quiz tool
+- Avoid product wording about interviews, hiring exercises, or evaluation ceremonies
 
 ## Review Standard
 When reviewing, prioritize:
 1. correctness bugs
-2. scoring regressions
-3. schema drift
-4. unsafe remote fetch behavior
-5. persistence mistakes
-6. missing tests
+2. source-grounding regressions
+3. scoring regressions
+4. schema drift
+5. unsafe remote fetch behavior
+6. persistence mistakes
+7. missing tests
