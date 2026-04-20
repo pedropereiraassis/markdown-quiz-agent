@@ -1,0 +1,27 @@
+{
+  "name": "markdown-quiz-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Node.js/TypeScript CLI app that generates and runs a Markdown-grounded quiz.",
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@clack/prompts": "1.2.0",
+    "@langchain/openai": "1.4.4",
+    "@langchain/openrouter": "0.2.2",
+    "better-sqlite3": "12.9.0",
+    "dotenv": "17.4.2",
+    "knex": "3.2.9",
+    "langchain": "1.3.3",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "25.6.0",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.4"
+  }
+}
