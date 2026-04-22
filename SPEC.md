@@ -216,26 +216,24 @@ Store the following in SQLite.
 Persisting snapshots is intentional so the session remains explainable even if prompts or generation logic later change.
 
 ## 10. LLM Provider Constraints
-### Default provider
-Default to direct OpenAI usage for the main implementation path.
+### Primary provider
+Use OpenRouter for the main implementation path.
 
-### Optional OpenRouter path
-If OpenRouter is used, all of the following are required:
-- Use a pinned model id
+OpenRouter requirements:
+- Use a pinned model id provided through configuration
 - Do not use `openrouter/auto`
 - Do not rely on broad provider auto-routing
 - Require parameter support
 - Do not enable broad fallbacks by default
-- If any fallback is configured, it must be a small, explicitly tested fallback set
-
-Recommended pinned model for the optional OpenRouter path:
-- `openai/gpt-4.1-mini`
+- Do not configure a direct-provider fallback in the MVP
+- Fail fast if the configured model id is missing or invalid
 
 ## 11. Non-Functional Requirements
 - Keep the architecture modular but lightweight.
 - Prefer predictable memory behavior over clever abstractions.
 - No unbounded retries.
 - No parallel fan-out model calls for quiz generation.
+- No unpinned or auto-routed model selection.
 - Deterministic business logic must be unit tested.
 
 ## 12. Acceptance Criteria

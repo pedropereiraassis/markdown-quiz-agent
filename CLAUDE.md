@@ -20,8 +20,7 @@ This file is Claude-specific persistent implementation guidance.
 - Language: TypeScript
 - CLI: `@clack/prompts`
 - AI orchestration: `langchain`
-- Default provider: `@langchain/openai`
-- Optional provider gateway: `@langchain/openrouter`
+- LLM provider: `@langchain/openrouter`
 - Validation: `zod`
 - Database: `knex` + `better-sqlite3`
 - Tests: `vitest`
@@ -49,21 +48,18 @@ Use a lightweight modular structure:
 Do not introduce deeper architecture layers unless they clearly reduce complexity.
 
 ## Provider Rules
-### Default path
-Use direct OpenAI for the main implementation path.
+### Primary provider: OpenRouter
+Use OpenRouter as the sole provider for the MVP.
 
-Recommended default model:
-- `gpt-4.1-mini`
-
-### Optional OpenRouter path
-If OpenRouter is enabled:
-- use a pinned model
-- do not use `openrouter/auto`
-- do not use broad provider auto-routing
-- require parameter support
-- do not enable broad fallbacks by default
-- keep the default pinned model as:
-  - `openai/gpt-4.1-mini`
+OpenRouter requirements:
+- Use a pinned model id supplied via `OPENROUTER_MODEL`
+- Do not use `openrouter/auto`
+- Do not rely on broad provider auto-routing
+- Require parameter support (`require_parameters: true`)
+- Do not enable broad fallbacks (`allow_fallbacks: false`)
+- Do not configure a direct-provider fallback in the MVP
+- Fail fast if `OPENROUTER_API_KEY` or `OPENROUTER_MODEL` is missing or invalid
+- Default pinned model: `openai/gpt-4.1-mini`
 
 ## Scoring Rules
 Implement exactly this logic.
