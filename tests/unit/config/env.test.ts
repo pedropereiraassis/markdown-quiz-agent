@@ -24,7 +24,14 @@ describe("parseEnv", () => {
       model: "openai/gpt-4.1-mini",
     });
     expect(env.database.path).toBe("./data/quiz.sqlite");
+    expect(env.quiz.agentMode).toBe("auto");
     expect(env.limits).toBe(FETCH_LIMITS);
+  });
+
+  it("parses QUIZ_AGENT_MODE when explicitly provided", () => {
+    const env = parseEnv(createRawEnv({ QUIZ_AGENT_MODE: "always" }));
+
+    expect(env.quiz.agentMode).toBe("always");
   });
 
   it("rejects a missing OpenRouter API key", () => {
@@ -49,6 +56,12 @@ describe("parseEnv", () => {
     expect(() => parseEnv(createRawEnv({ DATABASE_PATH: " " }))).toThrow(
       /DATABASE_PATH/,
     );
+  });
+
+  it("rejects an invalid QUIZ_AGENT_MODE", () => {
+    expect(() =>
+      parseEnv(createRawEnv({ QUIZ_AGENT_MODE: "sometimes" })),
+    ).toThrow(/QUIZ_AGENT_MODE/);
   });
 
   it("rejects in-memory and directory-style database paths", () => {

@@ -125,6 +125,27 @@ export const questionAnswerSchema = z.strictObject({
     }),
 });
 
+export interface QuizQuestionValidationResult {
+  success: boolean;
+  issues: string[];
+}
+
+export function validateQuizQuestion(
+  candidate: unknown,
+): QuizQuestionValidationResult {
+  const parsed = quizQuestionSchema.safeParse(candidate);
+
+  if (parsed.success) {
+    return { success: true, issues: [] };
+  }
+
+  const issues = parsed.error.issues.map(
+    (issue) => `${issue.path.join(".") || "question"}: ${issue.message}`,
+  );
+
+  return { success: false, issues };
+}
+
 export const quizSchema = z
   .strictObject({
     questions: z

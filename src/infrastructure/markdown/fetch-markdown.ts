@@ -28,6 +28,7 @@ export interface MarkdownSource {
   originalUrl: string;
   normalizedUrl: string;
   title: string | null;
+  fullMarkdown?: string;
   markdown: string;
   wasTruncated: boolean;
   originalCharacters: number;
@@ -139,6 +140,7 @@ export async function fetchMarkdown(
     return {
       originalUrl: sourceUrl,
       normalizedUrl,
+      fullMarkdown: normalizedMarkdown,
       title: deriveSourceTitle(normalizedMarkdown, normalizedUrl),
       markdown: boundedMarkdown.markdown,
       wasTruncated: boundedMarkdown.wasTruncated,

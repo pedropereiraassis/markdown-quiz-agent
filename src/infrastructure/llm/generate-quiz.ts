@@ -149,7 +149,7 @@ function buildRetryPrompt(
   ].join("\n");
 }
 
-function validateProviderConfig(
+export function validateProviderConfig(
   config: OpenRouterQuizModelConfig,
 ): OpenRouterQuizModelConfig {
   const apiKey = config.apiKey.trim();
@@ -206,7 +206,7 @@ function createDefaultOpenRouterQuizModel(
   };
 }
 
-function buildProviderPreferences(
+export function buildProviderPreferences(
   model: string,
 ): NonNullable<ChatOpenRouterInput["provider"]> {
   const preferences: NonNullable<ChatOpenRouterInput["provider"]> = {

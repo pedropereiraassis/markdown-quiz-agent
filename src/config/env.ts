@@ -1,7 +1,12 @@
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
-import { FETCH_LIMITS, PROVIDER_RULES } from "./constants.js";
+import {
+  FETCH_LIMITS,
+  PROVIDER_RULES,
+  QUIZ_AGENT_MODE_VALUES,
+  type QuizAgentMode,
+} from "./constants.js";
 
 const trimmedRequiredString = z.string().trim().min(1);
 
@@ -23,6 +28,7 @@ const envSchema = z.object({
     },
   ),
   DATABASE_PATH: databasePathSchema,
+  QUIZ_AGENT_MODE: z.enum(QUIZ_AGENT_MODE_VALUES).default("auto"),
 });
 
 const databaseEnvSchema = z.object({
@@ -37,6 +43,9 @@ export interface AppEnv {
   };
   database: {
     path: string;
+  };
+  quiz: {
+    agentMode: QuizAgentMode;
   };
   limits: typeof FETCH_LIMITS;
 }
@@ -56,7 +65,12 @@ export function parseEnv(rawEnv: Record<string, string | undefined>): AppEnv {
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
 
-  const { OPENROUTER_API_KEY, OPENROUTER_MODEL, DATABASE_PATH } = parsed.data;
+  const {
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    DATABASE_PATH,
+    QUIZ_AGENT_MODE,
+  } = parsed.data;
 
   return {
     provider: {
@@ -66,6 +80,9 @@ export function parseEnv(rawEnv: Record<string, string | undefined>): AppEnv {
     },
     database: {
       path: DATABASE_PATH,
+    },
+    quiz: {
+      agentMode: QUIZ_AGENT_MODE,
     },
     limits: FETCH_LIMITS,
   };

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { quizSchema } from "../../../src/domain/quiz/schema.js";
+import {
+  quizSchema,
+  validateQuizQuestion,
+} from "../../../src/domain/quiz/schema.js";
 import {
   createMultipleQuestion,
   createQuiz,
@@ -112,5 +115,61 @@ describe("quizSchema", () => {
     expect(() => quizSchema.parse(quiz)).toThrow(
       /must be unique|must match one of the declared option ids/,
     );
+  });
+});
+
+describe("validateQuizQuestion", () => {
+  it("accepts a valid single-answer question", () => {
+    const result = validateQuizQuestion(createSingleQuestion("q1"));
+    expect(result.success).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it("accepts a valid multiple-answer question", () => {
+    const result = validateQuizQuestion(
+      createMultipleQuestion("q2", ["q2-a", "q2-b"]),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects missing keys with a path-prefixed issue", () => {
+    const result = validateQuizQuestion({
+      id: "q1",
+      prompt: "missing options",
+      type: "single",
+    });
+    expect(result.success).toBe(false);
+    expect(result.issues.join(" ")).toMatch(/options|correctOptionIds/);
+  });
+
+  it("rejects duplicate option ids", () => {
+    const base = createSingleQuestion("q1");
+    const result = validateQuizQuestion({
+      ...base,
+      options: [
+        { id: "q1-a", label: "A" },
+        { id: "q1-a", label: "B" },
+        { id: "q1-c", label: "C" },
+        { id: "q1-d", label: "D" },
+      ],
+    });
+    expect(result.success).toBe(false);
+    expect(result.issues.join(" ")).toMatch(/must be unique/);
+  });
+
+  it("rejects wrong correctOptionIds length for single", () => {
+    const base = createSingleQuestion("q1");
+    const result = validateQuizQuestion({
+      ...base,
+      correctOptionIds: ["q1-a", "q1-b"],
+    });
+    expect(result.success).toBe(false);
+    expect(result.issues.join(" ")).toMatch(/exactly 1 correct option/);
+  });
+
+  it("rejects extra unknown keys (strict object)", () => {
+    const base = createSingleQuestion("q1");
+    const result = validateQuizQuestion({ ...base, extra: true });
+    expect(result.success).toBe(false);
   });
 });

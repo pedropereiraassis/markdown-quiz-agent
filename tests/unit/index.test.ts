@@ -25,6 +25,9 @@ const mocks = vi.hoisted(() => {
   const quizGenerator = {
     generate: vi.fn(),
   };
+  const agentQuizGenerator = {
+    generate: vi.fn(),
+  };
   const quizSessionRepository = {
     saveSession: vi.fn(),
   };
@@ -38,7 +41,9 @@ const mocks = vi.hoisted(() => {
     createClackOutput: vi.fn(() => output),
     createClackPromptApi: vi.fn(() => promptApi),
     createCliLogger: vi.fn(() => logger),
+    createOpenRouterAgentQuizGenerator: vi.fn(() => agentQuizGenerator),
     createOpenRouterQuizGenerator: vi.fn(() => quizGenerator),
+    createQuizGenerator: vi.fn(() => quizGenerator),
     createPersistenceKnex: vi.fn<() => Promise<any>>(async () => database),
     createRunQuizSession: vi.fn(() => runQuizSession),
     destroyPersistenceKnex: vi.fn(async () => undefined),
@@ -50,6 +55,7 @@ const mocks = vi.hoisted(() => {
     loadDatabaseEnv: vi.fn(() => ({ path: "./quiz.db" })),
     loadEnv: vi.fn(() => ({
       database: { path: "./quiz.db" },
+      quiz: { agentMode: "auto" },
       provider: { apiKey: "openrouter-key", model: "openai/gpt-4.1-mini" },
       limits: {},
     })),
@@ -69,6 +75,7 @@ const mocks = vi.hoisted(() => {
     shouldEnableCliDebugLogs: vi.fn(() => false),
     logger,
     database,
+    agentQuizGenerator,
   };
 });
 
@@ -95,6 +102,23 @@ vi.mock(
     ({
       loadDatabaseEnv: mocks.loadDatabaseEnv,
       loadEnv: mocks.loadEnv,
+    }) as any,
+);
+
+vi.mock(
+  "../../src/infrastructure/llm/agent/generate-quiz-agent.js",
+  () =>
+    ({
+      createOpenRouterAgentQuizGenerator:
+        mocks.createOpenRouterAgentQuizGenerator,
+    }) as any,
+);
+
+vi.mock(
+  "../../src/infrastructure/llm/create-quiz-generator.js",
+  () =>
+    ({
+      createQuizGenerator: mocks.createQuizGenerator,
     }) as any,
 );
 
@@ -188,6 +212,15 @@ describe("runCliCommand", () => {
       { apiKey: "openrouter-key", model: "openai/gpt-4.1-mini" },
       { logger: mocks.logger },
     );
+    expect(mocks.createOpenRouterAgentQuizGenerator).toHaveBeenCalledWith(
+      { apiKey: "openrouter-key", model: "openai/gpt-4.1-mini" },
+      { logger: mocks.logger },
+    );
+    expect(mocks.createQuizGenerator).toHaveBeenCalledWith({
+      agentGenerator: mocks.agentQuizGenerator,
+      agentMode: "auto",
+      directGenerator: mocks.quizGenerator,
+    });
     expect(mocks.KnexQuizSessionRepository).toHaveBeenCalledWith(
       mocks.database,
     );

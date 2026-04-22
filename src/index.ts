@@ -7,6 +7,8 @@ import {
 } from "./application/read-last-session.js";
 import { createRunQuizSession } from "./application/run-quiz-session.js";
 import { loadDatabaseEnv, loadEnv } from "./config/env.js";
+import { createQuizGenerator } from "./infrastructure/llm/create-quiz-generator.js";
+import { createOpenRouterAgentQuizGenerator } from "./infrastructure/llm/agent/generate-quiz-agent.js";
 import { createOpenRouterQuizGenerator } from "./infrastructure/llm/generate-quiz.js";
 import {
   createCliLogger,
@@ -91,13 +93,22 @@ export async function runCliCommand(): Promise<number> {
 
     const debugLogsEnabled = shouldEnableCliDebugLogs(process.env, cliArgs);
     const logger = createCliLogger(process.env, cliArgs);
+    const directQuizGenerator = createOpenRouterQuizGenerator(
+      { apiKey: env.provider.apiKey, model: env.provider.model },
+      { logger },
+    );
+    const agentQuizGenerator = createOpenRouterAgentQuizGenerator(
+      { apiKey: env.provider.apiKey, model: env.provider.model },
+      { logger },
+    );
     const runQuizSession = createRunQuizSession({
       fetchMarkdown,
       logger,
-      quizGenerator: createOpenRouterQuizGenerator(
-        { apiKey: env.provider.apiKey, model: env.provider.model },
-        { logger },
-      ),
+      quizGenerator: createQuizGenerator({
+        agentGenerator: agentQuizGenerator,
+        agentMode: env.quiz.agentMode,
+        directGenerator: directQuizGenerator,
+      }),
       quizSessionRepository: new KnexQuizSessionRepository(database),
     });
 

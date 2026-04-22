@@ -128,6 +128,7 @@ describe("fetchMarkdown", () => {
     });
 
     expect(validResult.markdown).toBe("# Valid\n\nMarkdown body.");
+    expect(validResult.fullMarkdown).toBe("# Valid\n\nMarkdown body.");
     expect(validResult.title).toBe("Valid");
 
     await expect(
@@ -188,6 +189,7 @@ describe("fetchMarkdown", () => {
     });
 
     expect(result.wasTruncated).toBe(true);
+    expect(result.fullMarkdown).toBe(markdown);
     expect(result.markdown.length).toBeLessThanOrEqual(
       FETCH_LIMITS.promptCharCap,
     );

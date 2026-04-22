@@ -41,3 +41,17 @@ export const PROVIDER_LIMITS = Object.freeze({
   llmTimeoutMs: 60_000,
   llmMaxOutputTokens: 4_096,
 });
+
+export const AGENT_LIMITS = Object.freeze({
+  maxAgentRounds: 8,
+  roundPromptBudgetChars: 6_000,
+  maxCorrectionRounds: 1,
+});
+
+export type QuizAgentMode = "auto" | "off" | "always";
+
+export const QUIZ_AGENT_MODE_VALUES: readonly QuizAgentMode[] = Object.freeze([
+  "auto",
+  "off",
+  "always",
+]);
