@@ -184,17 +184,14 @@ function createDefaultOpenRouterQuizModel(
 ): OpenRouterQuizModel {
   const chatModel = new ChatOpenRouter({
     apiKey: config.apiKey,
+    maxTokens: PROVIDER_LIMITS.llmMaxOutputTokens,
     model: config.model,
-    provider: {
-      allow_fallbacks: false,
-      require_parameters: true,
-    },
+    provider: buildProviderPreferences(config.model),
     temperature: 0,
   } satisfies ChatOpenRouterInput);
   const structuredModel = chatModel.withStructuredOutput(quizSchema, {
     includeRaw: true,
-    name: "quiz",
-    strict: true,
+    method: "jsonMode",
   });
 
   return {
@@ -207,6 +204,21 @@ function createDefaultOpenRouterQuizModel(
       });
     },
   };
+}
+
+function buildProviderPreferences(
+  model: string,
+): NonNullable<ChatOpenRouterInput["provider"]> {
+  const preferences: NonNullable<ChatOpenRouterInput["provider"]> = {
+    allow_fallbacks: false,
+    require_parameters: true,
+  };
+
+  if (model.startsWith(PROVIDER_RULES.openaiModelPrefix)) {
+    preferences.only = [PROVIDER_RULES.openaiProviderSlug];
+  }
+
+  return preferences;
 }
 
 function parseQuizResponse(response: StructuredQuizModelResponse):

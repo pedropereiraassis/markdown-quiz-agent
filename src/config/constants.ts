@@ -33,8 +33,11 @@ export const SCORING_RULES = Object.freeze({
 export const PROVIDER_RULES = Object.freeze({
   openRouterProvider: "openrouter",
   disallowedModelId: "openrouter/auto",
+  openaiModelPrefix: "openai/",
+  openaiProviderSlug: "openai",
 });
 
 export const PROVIDER_LIMITS = Object.freeze({
   llmTimeoutMs: 60_000,
+  llmMaxOutputTokens: 4_096,
 });
