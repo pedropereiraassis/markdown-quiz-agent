@@ -1,5 +1,5 @@
-import type { PreparedQuizQuestion } from '../../application/run-quiz-session.js';
-import type { QuestionAnswer } from '../../domain/quiz/types.js';
+import type { PreparedQuizQuestion } from "../../application/run-quiz-session.js";
+import type { QuestionAnswer } from "../../domain/quiz/types.js";
 
 export interface AnswerChoice {
   label: string;
@@ -29,7 +29,7 @@ export function buildQuestionPromptMessage(
 ): string {
   const heading = `Question ${questionOrder} of ${totalQuestionCount}`;
 
-  if (question.type === 'multiple') {
+  if (question.type === "multiple") {
     return `${heading}\nMultiple-answer question. Select all that apply.\n${question.prompt}`;
   }
 
@@ -42,13 +42,17 @@ export async function promptForQuestion(
   questionOrder: number,
   totalQuestionCount: number,
 ): Promise<QuestionAnswer> {
-  const promptMessage = buildQuestionPromptMessage(question, questionOrder, totalQuestionCount);
+  const promptMessage = buildQuestionPromptMessage(
+    question,
+    questionOrder,
+    totalQuestionCount,
+  );
   const options = question.options.map((option) => ({
     label: option.label,
     value: option.id,
   }));
 
-  if (question.type === 'multiple') {
+  if (question.type === "multiple") {
     const selectedOptionIds = await promptApi.promptMultiSelect({
       message: promptMessage,
       options,
@@ -79,7 +83,9 @@ export async function promptForAnswers(
   const answers: QuestionAnswer[] = [];
 
   for (const [index, question] of questions.entries()) {
-    answers.push(await promptForQuestion(promptApi, question, index + 1, questions.length));
+    answers.push(
+      await promptForQuestion(promptApi, question, index + 1, questions.length),
+    );
   }
 
   return answers;

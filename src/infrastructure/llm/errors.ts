@@ -1,8 +1,8 @@
 export type QuizGenerationErrorCode =
-  | 'invalid_config'
-  | 'invalid_input'
-  | 'provider_error'
-  | 'schema_validation_failed';
+  | "invalid_config"
+  | "invalid_input"
+  | "provider_error"
+  | "schema_validation_failed";
 
 interface QuizGenerationErrorOptions {
   cause?: unknown;
@@ -14,8 +14,11 @@ export class QuizGenerationError extends Error {
   readonly code: QuizGenerationErrorCode;
 
   constructor(options: QuizGenerationErrorOptions) {
-    super(options.message, options.cause ? { cause: options.cause } : undefined);
-    this.name = 'QuizGenerationError';
+    super(
+      options.message,
+      options.cause ? { cause: options.cause } : undefined,
+    );
+    this.name = "QuizGenerationError";
     this.code = options.code;
   }
 }
@@ -23,20 +26,20 @@ export class QuizGenerationError extends Error {
 export class QuizGenerationConfigError extends QuizGenerationError {
   constructor(message: string) {
     super({
-      code: 'invalid_config',
+      code: "invalid_config",
       message,
     });
-    this.name = 'QuizGenerationConfigError';
+    this.name = "QuizGenerationConfigError";
   }
 }
 
 export class QuizGenerationInputError extends QuizGenerationError {
   constructor(message: string) {
     super({
-      code: 'invalid_input',
+      code: "invalid_input",
       message,
     });
-    this.name = 'QuizGenerationInputError';
+    this.name = "QuizGenerationInputError";
   }
 }
 
@@ -46,10 +49,10 @@ export class QuizGenerationProviderError extends QuizGenerationError {
   constructor(message: string, attempt: number, cause?: unknown) {
     super({
       cause,
-      code: 'provider_error',
+      code: "provider_error",
       message,
     });
-    this.name = 'QuizGenerationProviderError';
+    this.name = "QuizGenerationProviderError";
     this.attempt = attempt;
   }
 }
@@ -60,10 +63,10 @@ export class QuizGenerationValidationError extends QuizGenerationError {
 
   constructor(message: string, attemptCount: number, issueSummary: string[]) {
     super({
-      code: 'schema_validation_failed',
+      code: "schema_validation_failed",
       message,
     });
-    this.name = 'QuizGenerationValidationError';
+    this.name = "QuizGenerationValidationError";
     this.attemptCount = attemptCount;
     this.issueSummary = issueSummary;
   }

@@ -1,14 +1,16 @@
-import { config as loadDotenv } from 'dotenv';
-import { z } from 'zod';
+import { config as loadDotenv } from "dotenv";
+import { z } from "zod";
 
-import { FETCH_LIMITS, PROVIDER_RULES } from './constants.js';
+import { FETCH_LIMITS, PROVIDER_RULES } from "./constants.js";
 
 const trimmedRequiredString = z.string().trim().min(1);
 
 const databasePathSchema = trimmedRequiredString.refine(
-  (value) => value !== ':memory:' && !value.endsWith('/') && !value.endsWith('\\'),
+  (value) =>
+    value !== ":memory:" && !value.endsWith("/") && !value.endsWith("\\"),
   {
-    message: 'DATABASE_PATH must be a SQLite file path and cannot be ":memory:" or a directory path',
+    message:
+      'DATABASE_PATH must be a SQLite file path and cannot be ":memory:" or a directory path',
   },
 );
 
@@ -48,8 +50,8 @@ export function parseEnv(rawEnv: Record<string, string | undefined>): AppEnv {
 
   if (!parsed.success) {
     const issues = parsed.error.issues
-      .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
-      .join('; ');
+      .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
+      .join("; ");
 
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
@@ -69,13 +71,15 @@ export function parseEnv(rawEnv: Record<string, string | undefined>): AppEnv {
   };
 }
 
-export function parseDatabaseEnv(rawEnv: Record<string, string | undefined>): DatabaseEnv {
+export function parseDatabaseEnv(
+  rawEnv: Record<string, string | undefined>,
+): DatabaseEnv {
   const parsed = databaseEnvSchema.safeParse(rawEnv);
 
   if (!parsed.success) {
     const issues = parsed.error.issues
-      .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
-      .join('; ');
+      .map((issue) => `${issue.path.join(".") || "env"}: ${issue.message}`)
+      .join("; ");
 
     throw new Error(`Invalid database configuration: ${issues}`);
   }
@@ -86,7 +90,7 @@ export function parseDatabaseEnv(rawEnv: Record<string, string | undefined>): Da
 }
 
 export function loadEnv(): AppEnv {
-  loadDotenv();
+  loadDotenv({ quiet: true });
 
   return parseEnv(process.env);
 }

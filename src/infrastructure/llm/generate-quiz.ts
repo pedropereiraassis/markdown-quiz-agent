@@ -1,17 +1,20 @@
-import { ChatOpenRouter, type ChatOpenRouterInput } from '@langchain/openrouter';
+import {
+  ChatOpenRouter,
+  type ChatOpenRouterInput,
+} from "@langchain/openrouter";
 
-import { PROVIDER_LIMITS, PROVIDER_RULES } from '../../config/constants.js';
-import { quizSchema } from '../../domain/quiz/schema.js';
-import type { Quiz } from '../../domain/quiz/types.js';
-import type { Logger } from '../logger.js';
-import { createNoopLogger } from '../logger.js';
-import type { MarkdownSource } from '../markdown/fetch-markdown.js';
-import { buildQuizPrompt } from './build-quiz-prompt.js';
+import { PROVIDER_LIMITS, PROVIDER_RULES } from "../../config/constants.js";
+import { quizSchema } from "../../domain/quiz/schema.js";
+import type { Quiz } from "../../domain/quiz/types.js";
+import type { Logger } from "../logger.js";
+import { createNoopLogger } from "../logger.js";
+import type { MarkdownSource } from "../markdown/fetch-markdown.js";
+import { buildQuizPrompt } from "./build-quiz-prompt.js";
 import {
   QuizGenerationConfigError,
   QuizGenerationProviderError,
   QuizGenerationValidationError,
-} from './errors.js';
+} from "./errors.js";
 
 const MAX_GENERATION_ATTEMPTS = 2;
 
@@ -41,7 +44,9 @@ export interface StructuredQuizModelResponse {
   raw: unknown;
 }
 
-export type OpenRouterQuizModelFactory = (config: OpenRouterQuizModelConfig) => OpenRouterQuizModel;
+export type OpenRouterQuizModelFactory = (
+  config: OpenRouterQuizModelConfig,
+) => OpenRouterQuizModel;
 
 export interface CreateOpenRouterQuizGeneratorOptions {
   buildPrompt?: typeof buildQuizPrompt;
@@ -61,11 +66,16 @@ export function createOpenRouterQuizGenerator(
 
   return {
     async generate(input: GenerateQuizInput): Promise<Quiz> {
-      const prompt = promptBuilder(input);
+      const basePrompt = promptBuilder(input);
       let lastValidationIssues: string[] = [];
 
       for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
-        logger.info('quiz_generation_attempt', {
+        const prompt =
+          attempt === 1
+            ? basePrompt
+            : buildRetryPrompt(basePrompt, lastValidationIssues);
+
+        logger.info("quiz_generation_attempt", {
           generationAttempt: attempt,
           providerModel: providerConfig.model,
         });
@@ -78,15 +88,18 @@ export function createOpenRouterQuizGenerator(
         );
 
         try {
-          modelResponse = await model.invoke(prompt, { signal: controller.signal });
+          modelResponse = await model.invoke(prompt, {
+            signal: controller.signal,
+          });
         } catch (error) {
-          logger.error('quiz_generation_provider_error', {
+          logger.error("quiz_generation_provider_error", {
             generationAttempt: attempt,
             providerModel: providerConfig.model,
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
           });
           throw new QuizGenerationProviderError(
-            'OpenRouter quiz generation failed before a valid response was returned',
+            "OpenRouter quiz generation failed before a valid response was returned",
             attempt,
             error,
           );
@@ -100,7 +113,7 @@ export function createOpenRouterQuizGenerator(
           return parsedQuiz.data;
         }
 
-        logger.error('quiz_generation_schema_failure', {
+        logger.error("quiz_generation_schema_failure", {
           generationAttempt: attempt,
           providerModel: providerConfig.model,
           rawResponseSample: parsedQuiz.rawResponseSample,
@@ -119,16 +132,39 @@ export function createOpenRouterQuizGenerator(
   };
 }
 
-function validateProviderConfig(config: OpenRouterQuizModelConfig): OpenRouterQuizModelConfig {
+function buildRetryPrompt(
+  basePrompt: string,
+  validationIssues: string[],
+): string {
+  if (validationIssues.length === 0) {
+    return basePrompt;
+  }
+
+  return [
+    basePrompt,
+    "",
+    "The previous response failed schema validation.",
+    "Fix every issue below and return JSON only:",
+    ...validationIssues.map((issue) => `- ${issue}`),
+  ].join("\n");
+}
+
+function validateProviderConfig(
+  config: OpenRouterQuizModelConfig,
+): OpenRouterQuizModelConfig {
   const apiKey = config.apiKey.trim();
   const model = config.model.trim();
 
   if (apiKey.length === 0) {
-    throw new QuizGenerationConfigError('OpenRouter API key is required for quiz generation');
+    throw new QuizGenerationConfigError(
+      "OpenRouter API key is required for quiz generation",
+    );
   }
 
   if (model.length === 0) {
-    throw new QuizGenerationConfigError('OpenRouter model id is required for quiz generation');
+    throw new QuizGenerationConfigError(
+      "OpenRouter model id is required for quiz generation",
+    );
   }
 
   if (model === PROVIDER_RULES.disallowedModelId) {
@@ -157,7 +193,7 @@ function createDefaultOpenRouterQuizModel(
   } satisfies ChatOpenRouterInput);
   const structuredModel = chatModel.withStructuredOutput(quizSchema, {
     includeRaw: true,
-    name: 'quiz',
+    name: "quiz",
     strict: true,
   });
 
@@ -173,9 +209,7 @@ function createDefaultOpenRouterQuizModel(
   };
 }
 
-function parseQuizResponse(
-  response: StructuredQuizModelResponse,
-):
+function parseQuizResponse(response: StructuredQuizModelResponse):
   | {
       data: Quiz;
       success: true;
@@ -198,13 +232,15 @@ function parseQuizResponse(
   return {
     rawResponseSample: summarizeRawModelResponse(response),
     issueSummary: parsed.error.issues.map(
-      (issue) => `${issue.path.join('.') || 'quiz'}: ${issue.message}`,
+      (issue) => `${issue.path.join(".") || "quiz"}: ${issue.message}`,
     ),
     success: false,
   };
 }
 
-function normalizeStructuredQuizResponse(response: StructuredQuizModelResponse): unknown {
+function normalizeStructuredQuizResponse(
+  response: StructuredQuizModelResponse,
+): unknown {
   if (response.parsed !== null && response.parsed !== undefined) {
     return response.parsed;
   }
@@ -222,12 +258,12 @@ function extractStructuredResponseFallback(raw: unknown): unknown {
   if (Array.isArray(toolCalls)) {
     const [firstToolCall] = toolCalls;
 
-    if (isRecord(firstToolCall) && 'args' in firstToolCall) {
+    if (isRecord(firstToolCall) && "args" in firstToolCall) {
       return normalizeModelResponse(firstToolCall.args);
     }
   }
 
-  if ('content' in raw) {
+  if ("content" in raw) {
     return normalizeModelResponse(raw.content);
   }
 
@@ -235,7 +271,7 @@ function extractStructuredResponseFallback(raw: unknown): unknown {
 }
 
 function normalizeModelResponse(response: unknown): unknown {
-  if (typeof response !== 'string') {
+  if (typeof response !== "string") {
     return response;
   }
 
@@ -246,7 +282,9 @@ function normalizeModelResponse(response: unknown): unknown {
   }
 }
 
-function summarizeRawModelResponse(response: StructuredQuizModelResponse): string {
+function summarizeRawModelResponse(
+  response: StructuredQuizModelResponse,
+): string {
   const extractedRaw = extractStructuredResponseFallback(response.raw);
   const serialized = serializeForLog(extractedRaw);
 
@@ -258,7 +296,7 @@ function summarizeRawModelResponse(response: StructuredQuizModelResponse): strin
 }
 
 function serializeForLog(value: unknown): string {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value;
   }
 
@@ -270,5 +308,5 @@ function serializeForLog(value: unknown): string {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }

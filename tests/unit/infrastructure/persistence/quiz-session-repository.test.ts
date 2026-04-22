@@ -1,19 +1,19 @@
-import type { Knex } from 'knex';
-import { describe, expect, it, vi } from 'vitest';
+import type { Knex } from "knex";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   KnexQuizSessionRepository,
   QuizSessionPersistenceError,
   type PersistQuizSessionInput,
-} from '../../../../src/infrastructure/persistence/quiz-session-repository.js';
+} from "../../../../src/infrastructure/persistence/quiz-session-repository.js";
 import {
   serializeOptionIdSnapshot,
   serializeOptionSnapshot,
-} from '../../../../src/infrastructure/persistence/serialize-snapshots.js';
+} from "../../../../src/infrastructure/persistence/serialize-snapshots.js";
 import {
   createMultipleQuestion,
   createSingleQuestion,
-} from '../../../support/quiz-fixtures.js';
+} from "../../../support/quiz-fixtures.js";
 
 interface InsertCall {
   tableName: string;
@@ -21,13 +21,18 @@ interface InsertCall {
 }
 
 function createPersistQuizSessionInput(): PersistQuizSessionInput {
-  const singleQuestion = createSingleQuestion('q1');
-  const multipleQuestion = createMultipleQuestion('q2', ['q2-a', 'q2-b', 'q2-d']);
+  const singleQuestion = createSingleQuestion("q1");
+  const multipleQuestion = createMultipleQuestion("q2", [
+    "q2-a",
+    "q2-b",
+    "q2-d",
+  ]);
 
   return {
-    sourceUrl: 'https://github.com/acme/docs/blob/main/guide.md?plain=1#intro',
-    normalizedSourceUrl: 'https://raw.githubusercontent.com/acme/docs/main/guide.md',
-    sourceTitle: 'Guide',
+    sourceUrl: "https://github.com/acme/docs/blob/main/guide.md?plain=1#intro",
+    normalizedSourceUrl:
+      "https://raw.githubusercontent.com/acme/docs/main/guide.md",
+    sourceTitle: "Guide",
     totalQuestionCount: 2,
     finalScore: 2.612345678901234,
     answers: [
@@ -38,7 +43,7 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
         questionTextSnapshot: singleQuestion.prompt,
         optionSnapshot: singleQuestion.options,
         correctOptionIds: singleQuestion.correctOptionIds,
-        selectedOptionIds: ['q1-a'],
+        selectedOptionIds: ["q1-a"],
         pointsAwarded: 4,
         weightApplied: 1,
       },
@@ -49,7 +54,7 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
         questionTextSnapshot: multipleQuestion.prompt,
         optionSnapshot: multipleQuestion.options,
         correctOptionIds: multipleQuestion.correctOptionIds,
-        selectedOptionIds: ['q2-a', 'q2-d'],
+        selectedOptionIds: ["q2-a", "q2-d"],
         pointsAwarded: 8 / 3,
         weightApplied: 1.1,
       },
@@ -57,44 +62,52 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
   };
 }
 
-function createFakeDatabase(options: { failOnTable?: string; error?: Error } = {}) {
+function createFakeDatabase(
+  options: { failOnTable?: string; error?: Error } = {},
+) {
   const insertCalls: InsertCall[] = [];
 
-  const transaction = vi.fn(async (handler: (transaction: Knex.Transaction) => Promise<unknown>) => {
-    const fakeTransaction = ((tableName: string) => ({
-      insert: async (payload: unknown) => {
-        if (options.failOnTable === tableName) {
-          throw options.error ?? new Error(`Failed to insert into ${tableName}`);
-        }
+  const transaction = vi.fn(
+    async (handler: (transaction: Knex.Transaction) => Promise<unknown>) => {
+      const fakeTransaction = ((tableName: string) => ({
+        insert: async (payload: unknown) => {
+          if (options.failOnTable === tableName) {
+            throw (
+              options.error ?? new Error(`Failed to insert into ${tableName}`)
+            );
+          }
 
-        insertCalls.push({ tableName, payload });
-      },
-    })) as unknown as Knex.Transaction;
+          insertCalls.push({ tableName, payload });
+        },
+      })) as unknown as Knex.Transaction;
 
-    return handler(fakeTransaction);
-  });
+      return handler(fakeTransaction);
+    },
+  );
 
   return {
-    database: { transaction } as unknown as Pick<Knex, 'transaction'>,
+    database: { transaction } as unknown as Pick<Knex, "transaction">,
     insertCalls,
     transaction,
   };
 }
 
-describe('serialize snapshots', () => {
-  it('serializes option snapshots and option id lists as stable JSON', () => {
-    const question = createMultipleQuestion('q2', ['q2-a', 'q2-b']);
+describe("serialize snapshots", () => {
+  it("serializes option snapshots and option id lists as stable JSON", () => {
+    const question = createMultipleQuestion("q2", ["q2-a", "q2-b"]);
 
     expect(serializeOptionSnapshot(question.options)).toBe(
       '[{"id":"q2-a","label":"Option A for q2"},{"id":"q2-b","label":"Option B for q2"},{"id":"q2-c","label":"Option C for q2"},{"id":"q2-d","label":"Option D for q2"}]',
     );
-    expect(serializeOptionIdSnapshot(question.correctOptionIds)).toBe('["q2-a","q2-b"]');
-    expect(serializeOptionIdSnapshot(['q2-b', 'q2-a'])).toBe('["q2-b","q2-a"]');
+    expect(serializeOptionIdSnapshot(question.correctOptionIds)).toBe(
+      '["q2-a","q2-b"]',
+    );
+    expect(serializeOptionIdSnapshot(["q2-b", "q2-a"])).toBe('["q2-b","q2-a"]');
   });
 });
 
-describe('KnexQuizSessionRepository', () => {
-  it('maps session and answer payloads to the expected persisted columns without rounding', async () => {
+describe("KnexQuizSessionRepository", () => {
+  it("maps session and answer payloads to the expected persisted columns without rounding", async () => {
     const input = createPersistQuizSessionInput();
     const { database, insertCalls, transaction } = createFakeDatabase();
     const repository = new KnexQuizSessionRepository(database);
@@ -108,7 +121,7 @@ describe('KnexQuizSessionRepository', () => {
     const answerInsert = insertCalls[1];
 
     expect(sessionInsert).toBeDefined();
-    expect(sessionInsert?.tableName).toBe('quiz_sessions');
+    expect(sessionInsert?.tableName).toBe("quiz_sessions");
     expect(sessionInsert?.payload).toEqual({
       id: savedSession.sessionId,
       source_url: input.sourceUrl,
@@ -119,15 +132,15 @@ describe('KnexQuizSessionRepository', () => {
       created_at: savedSession.createdAt,
     });
 
-    expect(answerInsert?.tableName).toBe('quiz_answers');
+    expect(answerInsert?.tableName).toBe("quiz_answers");
     expect(answerInsert?.payload).toEqual([
       {
         id: expect.any(String),
         session_id: savedSession.sessionId,
-        question_id: 'q1',
+        question_id: "q1",
         question_order: 1,
-        question_type: 'single',
-        question_text_snapshot: 'Prompt for q1',
+        question_type: "single",
+        question_text_snapshot: "Prompt for q1",
         option_snapshot_json:
           '[{"id":"q1-a","label":"Option A for q1"},{"id":"q1-b","label":"Option B for q1"},{"id":"q1-c","label":"Option C for q1"},{"id":"q1-d","label":"Option D for q1"}]',
         correct_option_ids_json: '["q1-a"]',
@@ -138,10 +151,10 @@ describe('KnexQuizSessionRepository', () => {
       {
         id: expect.any(String),
         session_id: savedSession.sessionId,
-        question_id: 'q2',
+        question_id: "q2",
         question_order: 2,
-        question_type: 'multiple',
-        question_text_snapshot: 'Prompt for q2',
+        question_type: "multiple",
+        question_text_snapshot: "Prompt for q2",
         option_snapshot_json:
           '[{"id":"q2-a","label":"Option A for q2"},{"id":"q2-b","label":"Option B for q2"},{"id":"q2-c","label":"Option C for q2"},{"id":"q2-d","label":"Option D for q2"}]',
         correct_option_ids_json: '["q2-a","q2-b","q2-d"]',
@@ -152,22 +165,22 @@ describe('KnexQuizSessionRepository', () => {
     ]);
   });
 
-  it('translates write failures into a typed persistence error', async () => {
+  it("translates write failures into a typed persistence error", async () => {
     const input = createPersistQuizSessionInput();
-    const databaseFailure = new Error('disk full');
+    const databaseFailure = new Error("disk full");
     const { database } = createFakeDatabase({
-      failOnTable: 'quiz_answers',
+      failOnTable: "quiz_answers",
       error: databaseFailure,
     });
     const repository = new KnexQuizSessionRepository(database);
 
     try {
       await repository.saveSession(input);
-      throw new Error('Expected saveSession to throw');
+      throw new Error("Expected saveSession to throw");
     } catch (error) {
       expect(error).toBeInstanceOf(QuizSessionPersistenceError);
       expect(error).toMatchObject({
-        message: 'Failed to persist quiz session',
+        message: "Failed to persist quiz session",
         cause: databaseFailure,
       });
     }

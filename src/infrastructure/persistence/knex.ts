@@ -1,14 +1,14 @@
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from "node:url";
 
-import knex, { type Knex } from 'knex';
+import knex, { type Knex } from "knex";
 
 export const SQLITE_MIGRATIONS_DIRECTORY = fileURLToPath(
-  new URL('../../../migrations', import.meta.url),
+  new URL("../../../migrations", import.meta.url),
 );
 
 export function createSqliteKnexConfig(databasePath: string): Knex.Config {
   return {
-    client: 'better-sqlite3',
+    client: "better-sqlite3",
     connection: {
       filename: databasePath,
     },
@@ -19,17 +19,19 @@ export function createSqliteKnexConfig(databasePath: string): Knex.Config {
     },
     migrations: {
       directory: SQLITE_MIGRATIONS_DIRECTORY,
-      extension: 'ts',
-      loadExtensions: ['.ts'],
+      extension: "ts",
+      loadExtensions: [".ts"],
     },
   };
 }
 
 export async function enableSqlitePragmas(database: Knex): Promise<void> {
-  await database.raw('PRAGMA foreign_keys = ON');
+  await database.raw("PRAGMA foreign_keys = ON");
 }
 
-export async function createPersistenceKnex(databasePath: string): Promise<Knex> {
+export async function createPersistenceKnex(
+  databasePath: string,
+): Promise<Knex> {
   const database = knex(createSqliteKnexConfig(databasePath));
 
   await enableSqlitePragmas(database);

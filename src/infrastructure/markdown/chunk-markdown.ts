@@ -1,4 +1,4 @@
-import { FETCH_LIMITS } from '../../config/constants.js';
+import { FETCH_LIMITS } from "../../config/constants.js";
 
 export interface ChunkMarkdownOptions {
   promptCharCap?: number;
@@ -17,7 +17,7 @@ export function splitMarkdownIntoChunks(
   markdown: string,
   preferredChunkChars: number = FETCH_LIMITS.preferredChunkChars,
 ): string[] {
-  assertPositiveInteger(preferredChunkChars, 'preferredChunkChars');
+  assertPositiveInteger(preferredChunkChars, "preferredChunkChars");
 
   const headingSections = splitMarkdownByHeadings(markdown);
   const chunks: string[] = [];
@@ -34,10 +34,11 @@ export function chunkMarkdown(
   options: ChunkMarkdownOptions = {},
 ): ChunkMarkdownResult {
   const promptCharCap = options.promptCharCap ?? FETCH_LIMITS.promptCharCap;
-  const preferredChunkChars = options.preferredChunkChars ?? FETCH_LIMITS.preferredChunkChars;
+  const preferredChunkChars =
+    options.preferredChunkChars ?? FETCH_LIMITS.preferredChunkChars;
 
-  assertPositiveInteger(promptCharCap, 'promptCharCap');
-  assertPositiveInteger(preferredChunkChars, 'preferredChunkChars');
+  assertPositiveInteger(promptCharCap, "promptCharCap");
+  assertPositiveInteger(preferredChunkChars, "preferredChunkChars");
 
   const chunks = splitMarkdownIntoChunks(markdown, preferredChunkChars);
 
@@ -64,7 +65,8 @@ export function chunkMarkdown(
       continue;
     }
 
-    const remainingCharacters = promptCharCap - retainedCharacters - separatorLength;
+    const remainingCharacters =
+      promptCharCap - retainedCharacters - separatorLength;
 
     if (remainingCharacters > 0) {
       selectedChunks.push(chunk.slice(0, remainingCharacters));
@@ -75,7 +77,7 @@ export function chunkMarkdown(
   }
 
   return {
-    markdown: selectedChunks.join('\n\n'),
+    markdown: selectedChunks.join("\n\n"),
     wasTruncated: true,
     originalCharacters: markdown.length,
     retainedCharacters,
@@ -83,27 +85,32 @@ export function chunkMarkdown(
   };
 }
 
-function pushSectionChunks(section: string, preferredChunkChars: number, chunks: string[]): void {
+function pushSectionChunks(
+  section: string,
+  preferredChunkChars: number,
+  chunks: string[],
+): void {
   if (section.length <= preferredChunkChars) {
     chunks.push(section);
     return;
   }
 
   const paragraphBlocks = splitMarkdownByParagraphs(section);
-  let currentChunk = '';
+  let currentChunk = "";
 
   for (const block of paragraphBlocks) {
     if (block.length > preferredChunkChars) {
       if (currentChunk.length > 0) {
         chunks.push(currentChunk);
-        currentChunk = '';
+        currentChunk = "";
       }
 
       chunks.push(...splitByCharacterLimit(block, preferredChunkChars));
       continue;
     }
 
-    const candidateChunk = currentChunk.length === 0 ? block : `${currentChunk}\n\n${block}`;
+    const candidateChunk =
+      currentChunk.length === 0 ? block : `${currentChunk}\n\n${block}`;
 
     if (candidateChunk.length <= preferredChunkChars) {
       currentChunk = candidateChunk;
@@ -123,13 +130,13 @@ function pushSectionChunks(section: string, preferredChunkChars: number, chunks:
 }
 
 function splitMarkdownByHeadings(markdown: string): string[] {
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
   const sections: string[] = [];
   let currentSection: string[] = [];
 
   for (const line of lines) {
     if (isHeadingLine(line) && currentSection.length > 0) {
-      const section = trimOuterBlankLines(currentSection.join('\n'));
+      const section = trimOuterBlankLines(currentSection.join("\n"));
 
       if (section.length > 0) {
         sections.push(section);
@@ -142,7 +149,7 @@ function splitMarkdownByHeadings(markdown: string): string[] {
     currentSection.push(line);
   }
 
-  const trailingSection = trimOuterBlankLines(currentSection.join('\n'));
+  const trailingSection = trimOuterBlankLines(currentSection.join("\n"));
 
   if (trailingSection.length > 0) {
     sections.push(trailingSection);
@@ -152,14 +159,14 @@ function splitMarkdownByHeadings(markdown: string): string[] {
 }
 
 function splitMarkdownByParagraphs(section: string): string[] {
-  const lines = section.split('\n');
+  const lines = section.split("\n");
   const blocks: string[] = [];
   let currentBlock: string[] = [];
 
   for (const line of lines) {
     if (line.trim().length === 0) {
       if (currentBlock.length > 0) {
-        blocks.push(currentBlock.join('\n'));
+        blocks.push(currentBlock.join("\n"));
         currentBlock = [];
       }
 
@@ -170,7 +177,7 @@ function splitMarkdownByParagraphs(section: string): string[] {
   }
 
   if (currentBlock.length > 0) {
-    blocks.push(currentBlock.join('\n'));
+    blocks.push(currentBlock.join("\n"));
   }
 
   return blocks.map(trimOuterBlankLines).filter((block) => block.length > 0);
@@ -187,7 +194,7 @@ function splitByCharacterLimit(text: string, limit: number): string[] {
 }
 
 function trimOuterBlankLines(text: string): string {
-  return text.replace(/^\n+/, '').replace(/\n+$/, '');
+  return text.replace(/^\n+/, "").replace(/\n+$/, "");
 }
 
 function isHeadingLine(line: string): boolean {

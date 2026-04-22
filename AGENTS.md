@@ -4,6 +4,7 @@
 This file is Codex-specific repo guidance.
 
 ## Priorities
+
 1. Working end-to-end CLI
 2. Source-grounded quiz quality
 3. Exact scoring correctness
@@ -13,12 +14,12 @@ This file is Codex-specific repo guidance.
 7. Small, explainable changes
 
 ## Stack
+
 - Node.js 24 LTS
 - TypeScript
 - `@clack/prompts`
 - `langchain`
-- `@langchain/openai` by default
-- optional `@langchain/openrouter`
+- `@langchain/openrouter` (sole provider for the MVP)
 - `zod`
 - `knex`
 - `better-sqlite3`
@@ -27,6 +28,7 @@ This file is Codex-specific repo guidance.
 - `dotenv`
 
 ## Architecture
+
 Keep the app lightweight and modular:
 
 - `src/domain`: types, schemas, scoring
@@ -38,32 +40,39 @@ Keep the app lightweight and modular:
 Do not add extra architecture layers unless they clearly simplify the code.
 
 ## Rules That Must Not Drift
+
 ### Scoring
+
 Keep the scoring math exact, but keep user-facing explanations simple.
 
 Single-answer:
+
 - exact match => `4`
 - otherwise => `0`
 
 Multiple-answer:
+
 - count correct selections
-- count wrong extra selections
-- subtract wrong extras from correct selections
-- scale that result to the `0` to `4` range based on how many correct answers exist
+- ignore any incorrect extra selections
+- scale the number of correct selections to the `0` to `4` range based on how many correct answers exist
 - clamp the final result to stay between `0` and `4`
 
 Final weighted score:
+
 - first question weight = `1.0`
 - each next question weight = previous weight plus `10%`
 - final score = weighted average of question scores
 
 User-facing result copy:
+
 - show per-question points and final numeric score
-- explain partial credit and wrong extra selections in plain language
+- explain partial credit in plain language
 - do not show formulas in the quiz flow
 
 ### Remote markdown ingestion
+
 Always enforce:
+
 - GitHub blob URL normalization to raw URL
 - `10_000 ms` timeout
 - max redirects `3`
@@ -74,17 +83,19 @@ Always enforce:
 - heading/paragraph-aware chunking before truncation
 
 ### Provider constraints
-Default implementation path:
-- direct OpenAI with a pinned model
 
-If OpenRouter is used:
-- pinned model only
+The MVP uses OpenRouter as the sole provider:
+
+- pinned model only (configured via `OPENROUTER_MODEL`)
 - no `openrouter/auto`
 - no broad auto-routing
-- require parameter support
-- no broad fallbacks by default
+- `require_parameters: true`
+- `allow_fallbacks: false`
+- no direct-provider fallback
+- fail fast if `OPENROUTER_API_KEY` or `OPENROUTER_MODEL` is missing or invalid
 
 ## Workflow
+
 - Read `SPEC.md` before coding
 - Read the approved PRD before changing product-facing behavior
 - Prefer the smallest coherent vertical slice
@@ -97,7 +108,9 @@ If OpenRouter is used:
 - Avoid product wording about interviews, hiring exercises, or evaluation ceremonies
 
 ## Review Standard
+
 When reviewing, prioritize:
+
 1. correctness bugs
 2. source-grounding regressions
 3. scoring regressions

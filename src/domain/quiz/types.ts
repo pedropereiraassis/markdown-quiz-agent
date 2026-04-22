@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 import {
   questionAnswerSchema,
@@ -6,7 +6,7 @@ import {
   questionTypeSchema,
   quizQuestionSchema,
   quizSchema,
-} from './schema.js';
+} from "./schema.js";
 
 export type QuestionType = z.infer<typeof questionTypeSchema>;
 export type QuestionOption = z.infer<typeof questionOptionSchema>;

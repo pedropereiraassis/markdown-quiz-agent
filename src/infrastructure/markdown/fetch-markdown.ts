@@ -1,25 +1,28 @@
-import { FETCH_LIMITS, SUPPORTED_TEXT_CONTENT_TYPES } from '../../config/constants.js';
-import { chunkMarkdown } from './chunk-markdown.js';
-import { normalizeMarkdownSourceUrl } from './normalize-github-url.js';
+import {
+  FETCH_LIMITS,
+  SUPPORTED_TEXT_CONTENT_TYPES,
+} from "../../config/constants.js";
+import { chunkMarkdown } from "./chunk-markdown.js";
+import { normalizeMarkdownSourceUrl } from "./normalize-github-url.js";
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const AMBIGUOUS_CONTENT_TYPES = new Set([
-  'application/octet-stream',
-  'application/unknown',
-  'binary/octet-stream',
+  "application/octet-stream",
+  "application/unknown",
+  "binary/octet-stream",
 ]);
 
 export type MarkdownIngestionErrorCode =
-  | 'empty_response'
-  | 'http_error'
-  | 'invalid_url'
-  | 'invalid_utf8'
-  | 'network_error'
-  | 'redirect_limit'
-  | 'response_too_large'
-  | 'timeout'
-  | 'unsupported_content_type'
-  | 'unsupported_scheme';
+  | "empty_response"
+  | "http_error"
+  | "invalid_url"
+  | "invalid_utf8"
+  | "network_error"
+  | "redirect_limit"
+  | "response_too_large"
+  | "timeout"
+  | "unsupported_content_type"
+  | "unsupported_scheme";
 
 export interface MarkdownSource {
   originalUrl: string;
@@ -49,7 +52,10 @@ export interface MarkdownIngestionErrorOptions {
   url: string;
 }
 
-export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
+export type FetchLike = (
+  input: string | URL,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export class MarkdownIngestionError extends Error {
   readonly code: MarkdownIngestionErrorCode;
@@ -57,8 +63,11 @@ export class MarkdownIngestionError extends Error {
   readonly statusCode?: number;
 
   constructor(options: MarkdownIngestionErrorOptions) {
-    super(options.message, options.cause ? { cause: options.cause } : undefined);
-    this.name = 'MarkdownIngestionError';
+    super(
+      options.message,
+      options.cause ? { cause: options.cause } : undefined,
+    );
+    this.name = "MarkdownIngestionError";
     this.code = options.code;
     this.url = options.url;
 
@@ -77,7 +86,8 @@ export async function fetchMarkdown(
   const maxRedirects = options.maxRedirects ?? FETCH_LIMITS.maxRedirects;
   const maxBytes = options.maxBytes ?? FETCH_LIMITS.maxBytes;
   const promptCharCap = options.promptCharCap ?? FETCH_LIMITS.promptCharCap;
-  const preferredChunkChars = options.preferredChunkChars ?? FETCH_LIMITS.preferredChunkChars;
+  const preferredChunkChars =
+    options.preferredChunkChars ?? FETCH_LIMITS.preferredChunkChars;
 
   const normalizedUrl = normalizeSourceUrl(sourceUrl);
   const controller = new AbortController();
@@ -91,25 +101,34 @@ export async function fetchMarkdown(
     });
 
     if (!response.ok) {
+      await cancelResponseBody(response);
       throw new MarkdownIngestionError({
-        code: 'http_error',
+        code: "http_error",
         message: `Source request failed with HTTP ${response.status}`,
         statusCode: response.status,
         url: normalizedUrl,
       });
     }
 
-    const contentType = classifyContentType(response.headers.get('content-type'));
+    const contentType = classifyContentType(
+      response.headers.get("content-type"),
+    );
 
-    if (contentType === 'unsupported') {
+    if (contentType === "unsupported") {
+      await cancelResponseBody(response);
       throw new MarkdownIngestionError({
-        code: 'unsupported_content_type',
-        message: 'Source response content-type is not supported for Markdown ingestion',
+        code: "unsupported_content_type",
+        message:
+          "Source response content-type is not supported for Markdown ingestion",
         url: normalizedUrl,
       });
     }
 
-    const responseBytes = await readResponseBytes(response, normalizedUrl, maxBytes);
+    const responseBytes = await readResponseBytes(
+      response,
+      normalizedUrl,
+      maxBytes,
+    );
     const decoded = decodeUtf8(responseBytes, normalizedUrl);
     const normalizedMarkdown = normalizeMarkdownText(decoded, normalizedUrl);
     const boundedMarkdown = chunkMarkdown(normalizedMarkdown, {
@@ -134,7 +153,7 @@ export async function fetchMarkdown(
 
     if (isAbortError(error) || controller.signal.aborted) {
       throw new MarkdownIngestionError({
-        code: 'timeout',
+        code: "timeout",
         message: `Source request exceeded the ${timeoutMs} ms timeout`,
         cause: error,
         url: normalizedUrl,
@@ -142,8 +161,8 @@ export async function fetchMarkdown(
     }
 
     throw new MarkdownIngestionError({
-      code: 'network_error',
-      message: 'Source request failed before Markdown could be ingested',
+      code: "network_error",
+      message: "Source request failed before Markdown could be ingested",
       cause: error,
       url: normalizedUrl,
     });
@@ -156,11 +175,12 @@ function normalizeSourceUrl(sourceUrl: string): string {
   try {
     return normalizeMarkdownSourceUrl(sourceUrl);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Invalid source URL';
+    const message =
+      error instanceof Error ? error.message : "Invalid source URL";
 
-    if (message.startsWith('Unsupported URL scheme:')) {
+    if (message.startsWith("Unsupported URL scheme:")) {
       throw new MarkdownIngestionError({
-        code: 'unsupported_scheme',
+        code: "unsupported_scheme",
         message,
         cause: error,
         url: sourceUrl,
@@ -168,8 +188,8 @@ function normalizeSourceUrl(sourceUrl: string): string {
     }
 
     throw new MarkdownIngestionError({
-      code: 'invalid_url',
-      message: 'Source URL must be a valid absolute http:// or https:// URL',
+      code: "invalid_url",
+      message: "Source URL must be a valid absolute http:// or https:// URL",
       cause: error,
       url: sourceUrl,
     });
@@ -189,10 +209,11 @@ async function fetchWithRedirects(
   for (let redirectCount = 0; ; redirectCount += 1) {
     const response = await options.fetchFn(currentUrl, {
       headers: {
-        accept: 'text/markdown, text/plain;q=0.9, text/x-markdown;q=0.9, */*;q=0.1',
+        accept:
+          "text/markdown, text/plain;q=0.9, text/x-markdown;q=0.9, */*;q=0.1",
       },
-      method: 'GET',
-      redirect: 'manual',
+      method: "GET",
+      redirect: "manual",
       signal: options.signal,
     });
 
@@ -204,19 +225,19 @@ async function fetchWithRedirects(
 
     if (redirectCount >= options.maxRedirects) {
       throw new MarkdownIngestionError({
-        code: 'redirect_limit',
+        code: "redirect_limit",
         message: `Source request exceeded the ${options.maxRedirects} redirect limit`,
         statusCode: response.status,
         url,
       });
     }
 
-    const location = response.headers.get('location');
+    const location = response.headers.get("location");
 
     if (!location) {
       throw new MarkdownIngestionError({
-        code: 'network_error',
-        message: 'Redirect response is missing a Location header',
+        code: "network_error",
+        message: "Redirect response is missing a Location header",
         statusCode: response.status,
         url: currentUrl,
       });
@@ -233,16 +254,16 @@ function normalizeRedirectUrl(currentUrl: string, location: string): string {
     redirectedUrl = new URL(location, currentUrl);
   } catch (error) {
     throw new MarkdownIngestionError({
-      code: 'network_error',
-      message: 'Redirect response location is invalid',
+      code: "network_error",
+      message: "Redirect response location is invalid",
       cause: error,
       url: currentUrl,
     });
   }
 
-  if (!['http:', 'https:'].includes(redirectedUrl.protocol)) {
+  if (!["http:", "https:"].includes(redirectedUrl.protocol)) {
     throw new MarkdownIngestionError({
-      code: 'unsupported_scheme',
+      code: "unsupported_scheme",
       message: `Unsupported URL scheme: ${redirectedUrl.protocol}`,
       url: redirectedUrl.toString(),
     });
@@ -256,14 +277,15 @@ async function readResponseBytes(
   url: string,
   maxBytes: number,
 ): Promise<Uint8Array> {
-  const contentLength = response.headers.get('content-length');
+  const contentLength = response.headers.get("content-length");
 
   if (contentLength) {
     const parsedLength = Number.parseInt(contentLength, 10);
 
     if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+      await cancelResponseBody(response);
       throw new MarkdownIngestionError({
-        code: 'response_too_large',
+        code: "response_too_large",
         message: `Source response exceeds the ${maxBytes} byte limit`,
         url,
       });
@@ -292,7 +314,7 @@ async function readResponseBytes(
 
       if (totalBytes > maxBytes) {
         throw new MarkdownIngestionError({
-          code: 'response_too_large',
+          code: "response_too_large",
           message: `Source response exceeds the ${maxBytes} byte limit`,
           url,
         });
@@ -327,13 +349,21 @@ function mergeChunks(chunks: Uint8Array[], totalBytes: number): Uint8Array {
   return merged;
 }
 
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Ignore cancellation errors because the original failure is more important.
+  }
+}
+
 function decodeUtf8(bytes: Uint8Array, url: string): string {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch (error) {
     throw new MarkdownIngestionError({
-      code: 'invalid_utf8',
-      message: 'Source response could not be decoded as UTF-8 text',
+      code: "invalid_utf8",
+      message: "Source response could not be decoded as UTF-8 text",
       cause: error,
       url,
     });
@@ -341,25 +371,26 @@ function decodeUtf8(bytes: Uint8Array, url: string): string {
 }
 
 function normalizeMarkdownText(text: string, url: string): string {
-  const normalized = text
-    .replace(/^\uFEFF/, '')
-    .replace(/\r\n?/g, '\n')
-    .normalize('NFC')
-    .replace(/^\u0000+/, '')
-    .replace(/\u0000+$/, '');
+  const normalized = trimOuterNullBytes(
+    text
+      .replace(/^\uFEFF/, "")
+      .replace(/\r\n?/g, "\n")
+      .normalize("NFC"),
+  );
 
-  if (normalized.includes('\u0000')) {
+  if (normalized.includes("\u0000")) {
     throw new MarkdownIngestionError({
-      code: 'invalid_utf8',
-      message: 'Source response contains embedded null bytes after UTF-8 normalization',
+      code: "invalid_utf8",
+      message:
+        "Source response contains embedded null bytes after UTF-8 normalization",
       url,
     });
   }
 
   if (normalized.trim().length === 0) {
     throw new MarkdownIngestionError({
-      code: 'empty_response',
-      message: 'Source response did not contain any Markdown text',
+      code: "empty_response",
+      message: "Source response did not contain any Markdown text",
       url,
     });
   }
@@ -367,37 +398,59 @@ function normalizeMarkdownText(text: string, url: string): string {
   return normalized;
 }
 
-function classifyContentType(contentTypeHeader: string | null): 'supported' | 'ambiguous' | 'unsupported' {
-  if (!contentTypeHeader) {
-    return 'ambiguous';
+function trimOuterNullBytes(text: string): string {
+  let start = 0;
+  let end = text.length;
+
+  while (start < end && text.charCodeAt(start) === 0) {
+    start += 1;
   }
 
-  const mediaType = contentTypeHeader.split(';', 1)[0]?.trim().toLowerCase();
+  while (end > start && text.charCodeAt(end - 1) === 0) {
+    end -= 1;
+  }
+
+  return text.slice(start, end);
+}
+
+function classifyContentType(
+  contentTypeHeader: string | null,
+): "supported" | "ambiguous" | "unsupported" {
+  if (!contentTypeHeader) {
+    return "ambiguous";
+  }
+
+  const mediaType = contentTypeHeader.split(";", 1)[0]?.trim().toLowerCase();
 
   if (!mediaType) {
-    return 'ambiguous';
+    return "ambiguous";
   }
 
   if (SUPPORTED_TEXT_CONTENT_TYPES.includes(mediaType)) {
-    return 'supported';
+    return "supported";
   }
 
   if (AMBIGUOUS_CONTENT_TYPES.has(mediaType)) {
-    return 'ambiguous';
+    return "ambiguous";
   }
 
-  return 'unsupported';
+  return "unsupported";
 }
 
-function deriveSourceTitle(markdown: string, normalizedUrl: string): string | null {
-  return extractTitleFromMarkdown(markdown) ?? extractTitleFromUrl(normalizedUrl);
+function deriveSourceTitle(
+  markdown: string,
+  normalizedUrl: string,
+): string | null {
+  return (
+    extractTitleFromMarkdown(markdown) ?? extractTitleFromUrl(normalizedUrl)
+  );
 }
 
 function extractTitleFromMarkdown(markdown: string): string | null {
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? '';
+    const line = lines[index]?.trim() ?? "";
 
     if (line.length === 0) {
       continue;
@@ -409,7 +462,7 @@ function extractTitleFromMarkdown(markdown: string): string | null {
       return atxHeading[1].trim();
     }
 
-    const underline = lines[index + 1]?.trim() ?? '';
+    const underline = lines[index + 1]?.trim() ?? "";
 
     if (/^(=+|-+)$/.test(underline)) {
       return line;
@@ -420,17 +473,23 @@ function extractTitleFromMarkdown(markdown: string): string | null {
 }
 
 function extractTitleFromUrl(normalizedUrl: string): string | null {
-  const lastPathSegment = new URL(normalizedUrl).pathname.split('/').filter(Boolean).at(-1);
+  const lastPathSegment = new URL(normalizedUrl).pathname
+    .split("/")
+    .filter(Boolean)
+    .at(-1);
 
   if (!lastPathSegment) {
     return null;
   }
 
-  const decoded = decodeURIComponent(lastPathSegment).replace(/\.(markdown|md|txt)$/i, '');
+  const decoded = decodeURIComponent(lastPathSegment).replace(
+    /\.(markdown|md|txt)$/i,
+    "",
+  );
 
   return decoded.length > 0 ? decoded : null;
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+  return error instanceof DOMException && error.name === "AbortError";
 }

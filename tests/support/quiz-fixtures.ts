@@ -1,4 +1,8 @@
-import type { QuestionAnswer, Quiz, QuizQuestion } from '../../src/domain/quiz/types.js';
+import type {
+  QuestionAnswer,
+  Quiz,
+  QuizQuestion,
+} from "../../src/domain/quiz/types.js";
 
 function createOptions(questionId: string) {
   return [
@@ -16,7 +20,7 @@ export function createSingleQuestion(
   return {
     id: questionId,
     prompt: `Prompt for ${questionId}`,
-    type: 'single',
+    type: "single",
     options: createOptions(questionId),
     correctOptionIds: [correctOptionId],
   };
@@ -29,7 +33,7 @@ export function createMultipleQuestion(
   return {
     id: questionId,
     prompt: `Prompt for ${questionId}`,
-    type: 'multiple',
+    type: "multiple",
     options: createOptions(questionId),
     correctOptionIds,
   };
@@ -37,21 +41,23 @@ export function createMultipleQuestion(
 
 export function createQuiz(questions?: QuizQuestion[]): Quiz {
   return {
-    questions:
-      questions ??
-      [
-        createSingleQuestion('q1', 'q1-a'),
-        createMultipleQuestion('q2', ['q2-a', 'q2-b']),
-        createSingleQuestion('q3', 'q3-b'),
-        createMultipleQuestion('q4', ['q4-a', 'q4-c', 'q4-d']),
-        createSingleQuestion('q5', 'q5-d'),
-      ],
+    questions: questions ?? [
+      createSingleQuestion("q1", "q1-a"),
+      createMultipleQuestion("q2", ["q2-a", "q2-b"]),
+      createSingleQuestion("q3", "q3-b"),
+      createMultipleQuestion("q4", ["q4-a", "q4-c", "q4-d"]),
+      createSingleQuestion("q5", "q5-d"),
+    ],
   };
 }
 
-export function createAnswers(selectedOptionIdsByQuestionId: Record<string, string[]>): QuestionAnswer[] {
-  return Object.entries(selectedOptionIdsByQuestionId).map(([questionId, selectedOptionIds]) => ({
-    questionId,
-    selectedOptionIds,
-  }));
+export function createAnswers(
+  selectedOptionIdsByQuestionId: Record<string, string[]>,
+): QuestionAnswer[] {
+  return Object.entries(selectedOptionIdsByQuestionId).map(
+    ([questionId, selectedOptionIds]) => ({
+      questionId,
+      selectedOptionIds,
+    }),
+  );
 }

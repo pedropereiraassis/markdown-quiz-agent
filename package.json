@@ -9,11 +9,15 @@
   "scripts": {
     "cli": "tsx src/index.ts",
     "db:migrate": "tsx src/infrastructure/persistence/migrate.ts",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint src tests migrations",
+    "lint:fix": "npm run lint -- --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run test"
+    "verify": "npm run lint && npm run format:check && npm run typecheck && npm run test"
   },
   "dependencies": {
     "@clack/prompts": "1.2.0",
@@ -25,11 +29,15 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.4",
+    "@eslint/js": "10.0.1",
     "@types/better-sqlite3": "7.6.13",
     "@types/node": "25.6.0",
+    "@vitest/coverage-v8": "4.1.4",
+    "eslint": "10.2.1",
+    "prettier": "3.8.3",
     "tsx": "4.21.0",
     "typescript": "6.0.3",
+    "typescript-eslint": "8.59.0",
     "vitest": "4.1.4"
   }
 }

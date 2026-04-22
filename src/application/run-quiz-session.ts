@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { z } from "zod";
 
-import { z } from 'zod';
-
-import { questionAnswerSchema } from '../domain/quiz/schema.js';
+import { questionAnswerSchema } from "../domain/quiz/schema.js";
 import type {
   QuestionAnswer,
   QuestionOption,
@@ -10,22 +8,27 @@ import type {
   Quiz,
   QuizQuestion,
   ScoredQuestionResult,
-} from '../domain/quiz/types.js';
-import { scoreQuiz } from '../domain/scoring/score-quiz.js';
-import type { QuizGenerator } from '../infrastructure/llm/generate-quiz.js';
-import { QuizGenerationError } from '../infrastructure/llm/errors.js';
-import type { Logger } from '../infrastructure/logger.js';
-import { createNoopLogger } from '../infrastructure/logger.js';
+} from "../domain/quiz/types.js";
+import { scoreQuiz } from "../domain/scoring/score-quiz.js";
+import {
+  createInMemoryPreparedQuizStore,
+  type PreparedQuizSource,
+  type PreparedQuizStore,
+} from "./prepared-quiz-store.js";
+import type { QuizGenerator } from "../infrastructure/llm/generate-quiz.js";
+import { QuizGenerationError } from "../infrastructure/llm/errors.js";
+import type { Logger } from "../infrastructure/logger.js";
+import { createNoopLogger } from "../infrastructure/logger.js";
 import type {
   MarkdownSource,
   MarkdownIngestionError,
-} from '../infrastructure/markdown/fetch-markdown.js';
-import { QuizSessionPersistenceError } from '../infrastructure/persistence/quiz-session-repository.js';
+} from "../infrastructure/markdown/fetch-markdown.js";
+import { QuizSessionPersistenceError } from "../infrastructure/persistence/quiz-session-repository.js";
 import type {
   PersistQuizSessionInput,
   QuizSessionRepository,
-} from '../infrastructure/persistence/quiz-session-repository.js';
-import { RunQuizSessionError } from './errors.js';
+} from "../infrastructure/persistence/quiz-session-repository.js";
+import { RunQuizSessionError } from "./errors.js";
 
 export interface PreparedQuizQuestion {
   id: string;
@@ -50,6 +53,8 @@ export interface CompletedQuizInput {
 }
 
 export interface CompletedQuizQuestionResult {
+  correctOptionIds: string[];
+  options: QuestionOption[];
   pointsAwarded: number;
   prompt: string;
   questionId: string;
@@ -78,57 +83,29 @@ export interface RunQuizSession {
 export interface CreateRunQuizSessionDependencies {
   fetchMarkdown(sourceUrl: string): Promise<MarkdownSource>;
   logger?: Logger;
-  quizGenerator: Pick<QuizGenerator, 'generate'>;
-  quizSessionRepository: Pick<QuizSessionRepository, 'saveSession'>;
+  preparedQuizStore?: PreparedQuizStore;
+  quizGenerator: Pick<QuizGenerator, "generate">;
+  quizSessionRepository: Pick<QuizSessionRepository, "saveSession">;
 }
 
 const preparedSessionTokenSchema = z
   .string()
   .trim()
-  .min(1, 'Prepared session token must be a non-empty string');
-
-const preparedSessionSourceSchema = z.strictObject({
-  normalizedUrl: z.string().trim().min(1),
-  originalUrl: z.string().trim().min(1),
-  title: z.string().trim().min(1).nullable(),
-});
-
-const publicQuizQuestionSchema = z.strictObject({
-  id: z.string().trim().min(1),
-  prompt: z.string().trim().min(1),
-  options: z.array(
-    z.strictObject({
-      id: z.string().trim().min(1),
-      label: z.string().trim().min(1),
-    }),
-  ),
-  type: z.enum(['single', 'multiple']),
-});
-
-// correctOptionIds are intentionally excluded from the encoded token.
-// They are stored in the closure-scoped pendingQuizzes Map and looked up
-// by sessionId during complete(). This prevents correct answers from
-// appearing in any serialised or logged form of PreparedQuizSession.
-const preparedSessionStateSchema = z.strictObject({
-  sessionId: z.string().trim().min(1),
-  questions: z.array(publicQuizQuestionSchema).min(1),
-  source: preparedSessionSourceSchema,
-});
-
-type PreparedQuizSessionState = z.infer<typeof preparedSessionStateSchema>;
+  .min(1, "Prepared session token must be a non-empty string");
 
 export function createRunQuizSession(
   dependencies: CreateRunQuizSessionDependencies,
 ): RunQuizSession {
   const logger = dependencies.logger ?? createNoopLogger();
-  const pendingQuizzes = new Map<string, Quiz>();
+  const preparedQuizStore =
+    dependencies.preparedQuizStore ?? createInMemoryPreparedQuizStore();
 
   return {
     async prepare(sourceUrl: string): Promise<PreparedQuizSession> {
       try {
-        logger.info('source_fetch_started', { sourceUrl });
+        logger.info("source_fetch_started", { sourceUrl });
         const source = await dependencies.fetchMarkdown(sourceUrl);
-        logger.info('source_fetch_completed', {
+        logger.info("source_fetch_completed", {
           normalizedSourceUrl: source.normalizedUrl,
           sourceUrl,
           wasTruncated: source.wasTruncated,
@@ -136,33 +113,37 @@ export function createRunQuizSession(
 
         const quiz = await dependencies.quizGenerator.generate({ source });
 
-        const sessionId = randomUUID();
-        pendingQuizzes.set(sessionId, quiz);
+        const sessionToken = await preparedQuizStore.save({
+          quiz,
+          source: {
+            normalizedUrl: source.normalizedUrl,
+            originalUrl: source.originalUrl,
+            title: source.title,
+          },
+        });
 
         return {
           normalizedSourceUrl: source.normalizedUrl,
           questionCount: quiz.questions.length,
           questions: quiz.questions.map(toPreparedQuizQuestion),
-          sessionToken: encodePreparedSessionState({
-            sessionId,
-            questions: quiz.questions.map(toPreparedQuizQuestion),
-            source: {
-              normalizedUrl: source.normalizedUrl,
-              originalUrl: source.originalUrl,
-              title: source.title,
-            },
-          }),
+          sessionToken,
           sourceTitle: source.title,
           sourceUrl: source.originalUrl,
           wasSourceTruncated: source.wasTruncated,
         };
       } catch (error) {
         if (isMarkdownIngestionError(error)) {
-          logger.error('source_fetch_failed', { errorType: error.code, sourceUrl });
+          logger.error("source_fetch_failed", {
+            errorType: error.code,
+            sourceUrl,
+          });
         }
         const translated = translatePrepareError(error);
         if (!isMarkdownIngestionError(error)) {
-          logger.error('prepare_failed', { errorType: translated.code, sourceUrl });
+          logger.error("prepare_failed", {
+            errorType: translated.code,
+            sourceUrl,
+          });
         }
         throw translated;
       }
@@ -170,89 +151,123 @@ export function createRunQuizSession(
 
     async complete(input: CompletedQuizInput): Promise<CompletedQuizSession> {
       try {
-        const preparedSessionState = decodePreparedSessionState(input.sessionToken);
-        const quiz = pendingQuizzes.get(preparedSessionState.sessionId);
+        const sessionToken = parsePreparedSessionToken(input.sessionToken);
+        const preparedSession = await preparedQuizStore.get(sessionToken);
 
-        if (!quiz) {
+        if (!preparedSession) {
           throw new RunQuizSessionError({
-            code: 'invalid_prepared_session',
-            message: 'Prepared quiz session has expired or does not exist in this process',
-            stage: 'complete',
+            code: "invalid_prepared_session",
+            message:
+              "Prepared quiz session has expired or does not exist in this process",
+            stage: "complete",
           });
         }
 
-        pendingQuizzes.delete(preparedSessionState.sessionId);
-
-        const validatedAnswers = validateAnswers(quiz, input.answers);
-        const scoredQuiz = scoreQuiz(quiz, validatedAnswers);
+        const validatedAnswers = validateAnswers(
+          preparedSession.quiz,
+          input.answers,
+        );
+        const scoredQuiz = scoreQuiz(preparedSession.quiz, validatedAnswers);
         const persistInput = buildPersistQuizSessionInput(
-          preparedSessionState,
-          quiz,
+          preparedSession.source,
+          preparedSession.quiz,
           validatedAnswers,
           scoredQuiz.questionResults,
           scoredQuiz.finalScore,
         );
-        const persistedSession = await dependencies.quizSessionRepository.saveSession(persistInput);
-        logger.info('session_persisted', { sessionId: persistedSession.sessionId });
-
-        return {
+        const persistedSession =
+          await dependencies.quizSessionRepository.saveSession(persistInput);
+        const completedSession: CompletedQuizSession = {
           createdAt: persistedSession.createdAt,
           finalScore: scoredQuiz.finalScore,
-          normalizedSourceUrl: preparedSessionState.source.normalizedUrl,
-          questionResults: quiz.questions.map((question, index) => {
-            const questionResult = scoredQuiz.questionResults[index];
+          normalizedSourceUrl: preparedSession.source.normalizedUrl,
+          questionResults: preparedSession.quiz.questions.map(
+            (question, index) => {
+              const questionResult = scoredQuiz.questionResults[index];
 
-            if (!questionResult) {
-              throw new RunQuizSessionError({
-                code: 'unexpected_failure',
-                message: 'Scored quiz results did not match the prepared quiz questions',
-                stage: 'complete',
-              });
-            }
+              if (!questionResult) {
+                throw new RunQuizSessionError({
+                  code: "unexpected_failure",
+                  message:
+                    "Scored quiz results did not match the prepared quiz questions",
+                  stage: "complete",
+                });
+              }
 
-            return {
-              pointsAwarded: questionResult.pointsAwarded,
-              prompt: question.prompt,
-              questionId: question.id,
-              questionOrder: questionResult.questionOrder,
-              questionType: question.type,
-              selectedOptionIds: [...questionResult.selectedOptionIds],
-              weightApplied: questionResult.weightApplied,
-            };
-          }),
+              return {
+                correctOptionIds: [...question.correctOptionIds],
+                options: question.options.map((option) => ({
+                  id: option.id,
+                  label: option.label,
+                })),
+                pointsAwarded: questionResult.pointsAwarded,
+                prompt: question.prompt,
+                questionId: question.id,
+                questionOrder: questionResult.questionOrder,
+                questionType: question.type,
+                selectedOptionIds: [...questionResult.selectedOptionIds],
+                weightApplied: questionResult.weightApplied,
+              };
+            },
+          ),
           sessionId: persistedSession.sessionId,
-          sourceTitle: preparedSessionState.source.title,
-          sourceUrl: preparedSessionState.source.originalUrl,
-          totalQuestionCount: quiz.questions.length,
+          sourceTitle: preparedSession.source.title,
+          sourceUrl: preparedSession.source.originalUrl,
+          totalQuestionCount: preparedSession.quiz.questions.length,
         };
+
+        await discardPreparedQuizSession(
+          preparedQuizStore,
+          sessionToken,
+          logger,
+        );
+        logger.info("session_persisted", {
+          sessionId: persistedSession.sessionId,
+        });
+
+        return completedSession;
       } catch (error) {
         if (error instanceof RunQuizSessionError) {
-          logger.error('complete_failed', { errorType: error.code });
+          logger.error("complete_failed", { errorType: error.code });
           throw error;
         }
 
         if (error instanceof QuizSessionPersistenceError) {
           const translated = new RunQuizSessionError({
             cause: error,
-            code: 'persistence_failed',
-            message: 'Could not save the completed quiz session',
-            stage: 'complete',
+            code: "persistence_failed",
+            message: "Could not save the completed quiz session",
+            stage: "complete",
           });
-          logger.error('complete_failed', { errorType: translated.code });
+          logger.error("complete_failed", { errorType: translated.code });
           throw translated;
         }
 
         const translated = new RunQuizSessionError({
           cause: error,
-          code: 'unexpected_failure',
-          message: 'Completing the quiz session failed unexpectedly',
-          stage: 'complete',
+          code: "unexpected_failure",
+          message: "Completing the quiz session failed unexpectedly",
+          stage: "complete",
         });
-        logger.error('complete_failed', { errorType: translated.code });
+        logger.error("complete_failed", { errorType: translated.code });
         throw translated;
       }
     },
   };
+}
+
+async function discardPreparedQuizSession(
+  preparedQuizStore: PreparedQuizStore,
+  sessionToken: string,
+  logger: Logger,
+): Promise<void> {
+  try {
+    await preparedQuizStore.delete(sessionToken);
+  } catch (error) {
+    logger.error("prepared_session_cleanup_failed", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function toPreparedQuizQuestion(question: QuizQuestion): PreparedQuizQuestion {
@@ -267,48 +282,46 @@ function toPreparedQuizQuestion(question: QuizQuestion): PreparedQuizQuestion {
   };
 }
 
-function encodePreparedSessionState(state: PreparedQuizSessionState): string {
-  return Buffer.from(JSON.stringify(state), 'utf8').toString('base64url');
-}
-
-function decodePreparedSessionState(sessionToken: string): PreparedQuizSessionState {
+function parsePreparedSessionToken(sessionToken: string): string {
   try {
-    const parsedToken = preparedSessionTokenSchema.parse(sessionToken);
-    const decodedToken = Buffer.from(parsedToken, 'base64url').toString('utf8');
-    const rawState = JSON.parse(decodedToken) as unknown;
-
-    return preparedSessionStateSchema.parse(rawState);
+    return preparedSessionTokenSchema.parse(sessionToken);
   } catch (error) {
     throw new RunQuizSessionError({
       cause: error,
-      code: 'invalid_prepared_session',
-      message: 'Prepared quiz session is invalid or could not be decoded',
-      stage: 'complete',
+      code: "invalid_prepared_session",
+      message: "Prepared quiz session is invalid or could not be decoded",
+      stage: "complete",
     });
   }
 }
 
-function validateAnswers(quiz: Quiz, answers: QuestionAnswer[]): QuestionAnswer[] {
+function validateAnswers(
+  quiz: Quiz,
+  answers: QuestionAnswer[],
+): QuestionAnswer[] {
   const parsedAnswers = answers.map((answer) => {
     try {
       return questionAnswerSchema.parse(answer);
     } catch (error) {
       throw new RunQuizSessionError({
         cause: error,
-        code: 'invalid_answers',
-        message: 'Quiz answers must match the prepared questions and option ids',
-        stage: 'complete',
+        code: "invalid_answers",
+        message:
+          "Quiz answers must match the prepared questions and option ids",
+        stage: "complete",
       });
     }
   });
 
-  const questionsById = new Map(quiz.questions.map((question) => [question.id, question]));
+  const questionsById = new Map(
+    quiz.questions.map((question) => [question.id, question]),
+  );
 
   if (parsedAnswers.length !== quiz.questions.length) {
     throw new RunQuizSessionError({
-      code: 'invalid_answers',
-      message: 'Quiz answers must cover every prepared question exactly once',
-      stage: 'complete',
+      code: "invalid_answers",
+      message: "Quiz answers must cover every prepared question exactly once",
+      stage: "complete",
     });
   }
 
@@ -317,9 +330,9 @@ function validateAnswers(quiz: Quiz, answers: QuestionAnswer[]): QuestionAnswer[
   for (const answer of parsedAnswers) {
     if (seenQuestionIds.has(answer.questionId)) {
       throw new RunQuizSessionError({
-        code: 'invalid_answers',
-        message: 'Quiz answers must cover every prepared question exactly once',
-        stage: 'complete',
+        code: "invalid_answers",
+        message: "Quiz answers must cover every prepared question exactly once",
+        stage: "complete",
       });
     }
 
@@ -329,9 +342,10 @@ function validateAnswers(quiz: Quiz, answers: QuestionAnswer[]): QuestionAnswer[
 
     if (!question) {
       throw new RunQuizSessionError({
-        code: 'invalid_answers',
-        message: 'Quiz answers must match the prepared questions and option ids',
-        stage: 'complete',
+        code: "invalid_answers",
+        message:
+          "Quiz answers must match the prepared questions and option ids",
+        stage: "complete",
       });
     }
 
@@ -340,9 +354,10 @@ function validateAnswers(quiz: Quiz, answers: QuestionAnswer[]): QuestionAnswer[
     for (const selectedOptionId of answer.selectedOptionIds) {
       if (!optionIds.has(selectedOptionId)) {
         throw new RunQuizSessionError({
-          code: 'invalid_answers',
-          message: 'Quiz answers must match the prepared questions and option ids',
-          stage: 'complete',
+          code: "invalid_answers",
+          message:
+            "Quiz answers must match the prepared questions and option ids",
+          stage: "complete",
         });
       }
     }
@@ -352,13 +367,15 @@ function validateAnswers(quiz: Quiz, answers: QuestionAnswer[]): QuestionAnswer[
 }
 
 function buildPersistQuizSessionInput(
-  preparedSessionState: PreparedQuizSessionState,
+  preparedQuizSource: PreparedQuizSource,
   quiz: Quiz,
   answers: QuestionAnswer[],
   questionResults: ScoredQuestionResult[],
   finalScore: number,
 ): PersistQuizSessionInput {
-  const answersByQuestionId = new Map(answers.map((answer) => [answer.questionId, answer]));
+  const answersByQuestionId = new Map(
+    answers.map((answer) => [answer.questionId, answer]),
+  );
 
   return {
     answers: quiz.questions.map((question, index) => {
@@ -367,15 +384,18 @@ function buildPersistQuizSessionInput(
 
       if (!answer || !questionResult) {
         throw new RunQuizSessionError({
-          code: 'unexpected_failure',
-          message: 'Prepared quiz answers did not line up with scored results',
-          stage: 'complete',
+          code: "unexpected_failure",
+          message: "Prepared quiz answers did not line up with scored results",
+          stage: "complete",
         });
       }
 
       return {
         correctOptionIds: [...question.correctOptionIds],
-        optionSnapshot: question.options.map((option) => ({ id: option.id, label: option.label })),
+        optionSnapshot: question.options.map((option) => ({
+          id: option.id,
+          label: option.label,
+        })),
         pointsAwarded: questionResult.pointsAwarded,
         questionId: question.id,
         questionOrder: questionResult.questionOrder,
@@ -386,9 +406,9 @@ function buildPersistQuizSessionInput(
       };
     }),
     finalScore,
-    normalizedSourceUrl: preparedSessionState.source.normalizedUrl,
-    sourceTitle: preparedSessionState.source.title,
-    sourceUrl: preparedSessionState.source.originalUrl,
+    normalizedSourceUrl: preparedQuizSource.normalizedUrl,
+    sourceTitle: preparedQuizSource.title,
+    sourceUrl: preparedQuizSource.originalUrl,
     totalQuestionCount: quiz.questions.length,
   };
 }
@@ -399,45 +419,48 @@ function translatePrepareError(error: unknown): RunQuizSessionError {
   }
 
   if (isMarkdownIngestionError(error)) {
-    if (error.code === 'invalid_url' || error.code === 'unsupported_scheme') {
+    if (error.code === "invalid_url" || error.code === "unsupported_scheme") {
       return new RunQuizSessionError({
         cause: error,
-        code: 'invalid_source_url',
-        message: 'Source URL must be a valid absolute http:// or https:// URL',
-        stage: 'prepare',
+        code: "invalid_source_url",
+        message: "Source URL must be a valid absolute http:// or https:// URL",
+        stage: "prepare",
       });
     }
 
     return new RunQuizSessionError({
       cause: error,
-      code: 'source_unavailable',
-      message: 'Could not load bounded Markdown from the source URL',
-      stage: 'prepare',
+      code: "source_unavailable",
+      message: "Could not load bounded Markdown from the source URL",
+      stage: "prepare",
     });
   }
 
   if (error instanceof QuizGenerationError) {
     return new RunQuizSessionError({
       cause: error,
-      code: 'quiz_generation_failed',
-      message: 'Could not generate a valid quiz from the bounded source Markdown',
-      stage: 'prepare',
+      code: "quiz_generation_failed",
+      message:
+        "Could not generate a valid quiz from the bounded source Markdown",
+      stage: "prepare",
     });
   }
 
   return new RunQuizSessionError({
     cause: error,
-    code: 'unexpected_failure',
-    message: 'Preparing the quiz session failed unexpectedly',
-    stage: 'prepare',
+    code: "unexpected_failure",
+    message: "Preparing the quiz session failed unexpectedly",
+    stage: "prepare",
   });
 }
 
-function isMarkdownIngestionError(error: unknown): error is MarkdownIngestionError {
+function isMarkdownIngestionError(
+  error: unknown,
+): error is MarkdownIngestionError {
   return (
     error instanceof Error &&
-    error.name === 'MarkdownIngestionError' &&
-    'code' in error &&
-    typeof error.code === 'string'
+    error.name === "MarkdownIngestionError" &&
+    "code" in error &&
+    typeof error.code === "string"
   );
 }

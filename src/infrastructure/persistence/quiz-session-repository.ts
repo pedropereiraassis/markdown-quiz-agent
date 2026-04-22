@@ -1,12 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from "node:crypto";
 
-import type { Knex } from 'knex';
+import type { Knex } from "knex";
 
-import type { QuestionOption, QuestionType } from '../../domain/quiz/types.js';
+import type { QuestionOption, QuestionType } from "../../domain/quiz/types.js";
 import {
   serializeOptionIdSnapshot,
   serializeOptionSnapshot,
-} from './serialize-snapshots.js';
+} from "./serialize-snapshots.js";
 
 export interface PersistedQuizAnswerInput {
   questionId: string;
@@ -59,11 +59,13 @@ export interface QuizAnswerRow {
 }
 
 export interface QuizSessionRepository {
-  saveSession(session: PersistQuizSessionInput): Promise<PersistQuizSessionResult>;
+  saveSession(
+    session: PersistQuizSessionInput,
+  ): Promise<PersistQuizSessionResult>;
 }
 
 export class QuizSessionPersistenceError extends Error {
-  override readonly name = 'QuizSessionPersistenceError';
+  override readonly name = "QuizSessionPersistenceError";
 
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -99,16 +101,20 @@ export function buildQuizAnswerInsertRows(
     question_text_snapshot: answer.questionTextSnapshot,
     option_snapshot_json: serializeOptionSnapshot(answer.optionSnapshot),
     correct_option_ids_json: serializeOptionIdSnapshot(answer.correctOptionIds),
-    selected_option_ids_json: serializeOptionIdSnapshot(answer.selectedOptionIds),
+    selected_option_ids_json: serializeOptionIdSnapshot(
+      answer.selectedOptionIds,
+    ),
     points_awarded: answer.pointsAwarded,
     weight_applied: answer.weightApplied,
   }));
 }
 
 export class KnexQuizSessionRepository implements QuizSessionRepository {
-  constructor(private readonly database: Pick<Knex, 'transaction'>) {}
+  constructor(private readonly database: Pick<Knex, "transaction">) {}
 
-  async saveSession(session: PersistQuizSessionInput): Promise<PersistQuizSessionResult> {
+  async saveSession(
+    session: PersistQuizSessionInput,
+  ): Promise<PersistQuizSessionResult> {
     const sessionId = randomUUID();
     const createdAt = new Date().toISOString();
     const sessionRow = buildQuizSessionInsertRow(session, sessionId, createdAt);
@@ -116,14 +122,14 @@ export class KnexQuizSessionRepository implements QuizSessionRepository {
 
     try {
       await this.database.transaction(async (transaction) => {
-        await transaction<QuizSessionRow>('quiz_sessions').insert(sessionRow);
+        await transaction<QuizSessionRow>("quiz_sessions").insert(sessionRow);
 
         if (answerRows.length > 0) {
-          await transaction<QuizAnswerRow>('quiz_answers').insert(answerRows);
+          await transaction<QuizAnswerRow>("quiz_answers").insert(answerRows);
         }
       });
     } catch (error) {
-      throw new QuizSessionPersistenceError('Failed to persist quiz session', {
+      throw new QuizSessionPersistenceError("Failed to persist quiz session", {
         cause: error instanceof Error ? error : undefined,
       });
     }

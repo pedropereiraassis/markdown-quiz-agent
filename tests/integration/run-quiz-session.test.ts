@@ -1,37 +1,44 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import type { Knex } from 'knex';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Knex } from "knex";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createRunQuizSession,
   RunQuizSessionError,
-} from '../../src/application/index.js';
-import { getQuestionWeights, scoreQuiz } from '../../src/domain/scoring/score-quiz.js';
-import { QuizGenerationValidationError } from '../../src/infrastructure/llm/errors.js';
-import { MarkdownIngestionError } from '../../src/infrastructure/markdown/fetch-markdown.js';
+} from "../../src/application/index.js";
+import {
+  getQuestionWeights,
+  scoreQuiz,
+} from "../../src/domain/scoring/score-quiz.js";
+import { QuizGenerationValidationError } from "../../src/infrastructure/llm/errors.js";
+import { MarkdownIngestionError } from "../../src/infrastructure/markdown/fetch-markdown.js";
 import {
   createPersistenceKnex,
   destroyPersistenceKnex,
   migrateToLatest,
-} from '../../src/infrastructure/persistence/knex.js';
-import { KnexQuizSessionRepository } from '../../src/infrastructure/persistence/quiz-session-repository.js';
+} from "../../src/infrastructure/persistence/knex.js";
+import { KnexQuizSessionRepository } from "../../src/infrastructure/persistence/quiz-session-repository.js";
 import {
   createAnswers,
   createMultipleQuestion,
   createQuiz,
   createSingleQuestion,
-} from '../support/quiz-fixtures.js';
+} from "../support/quiz-fixtures.js";
 
-describe('run quiz session integration', () => {
+describe("run quiz session integration", () => {
   let database: Knex | undefined;
   let databaseDirectory: string | undefined;
 
   beforeEach(async () => {
-    databaseDirectory = await mkdtemp(path.join(tmpdir(), 'markdown-quiz-agent-run-session-'));
-    database = await createPersistenceKnex(path.join(databaseDirectory, 'quiz.sqlite'));
+    databaseDirectory = await mkdtemp(
+      path.join(tmpdir(), "markdown-quiz-agent-run-session-"),
+    );
+    database = await createPersistenceKnex(
+      path.join(databaseDirectory, "quiz.sqlite"),
+    );
     await migrateToLatest(database);
   });
 
@@ -45,38 +52,41 @@ describe('run quiz session integration', () => {
     }
   });
 
-  it('persists one completed session and ordered answer snapshots through the application use case', async () => {
+  it("persists one completed session and ordered answer snapshots through the application use case", async () => {
     const databaseConnection = database;
 
     expect(databaseConnection).toBeDefined();
 
     if (!databaseConnection) {
-      throw new Error('Expected SQLite database to be initialized for the test');
+      throw new Error(
+        "Expected SQLite database to be initialized for the test",
+      );
     }
 
     const source = {
       chunkCount: 3,
-      markdown: '# Guide\n\nA bounded guide.',
-      normalizedUrl: 'https://raw.githubusercontent.com/acme/docs/main/guide.md',
+      markdown: "# Guide\n\nA bounded guide.",
+      normalizedUrl:
+        "https://raw.githubusercontent.com/acme/docs/main/guide.md",
       originalCharacters: 320,
-      originalUrl: 'https://github.com/acme/docs/blob/main/guide.md',
+      originalUrl: "https://github.com/acme/docs/blob/main/guide.md",
       retainedCharacters: 320,
-      title: 'Guide',
+      title: "Guide",
       wasTruncated: false,
     };
     const quiz = createQuiz([
-      createSingleQuestion('q1', 'q1-a'),
-      createMultipleQuestion('q2', ['q2-a', 'q2-b']),
-      createSingleQuestion('q3', 'q3-b'),
-      createMultipleQuestion('q4', ['q4-a', 'q4-c', 'q4-d']),
-      createSingleQuestion('q5', 'q5-d'),
+      createSingleQuestion("q1", "q1-a"),
+      createMultipleQuestion("q2", ["q2-a", "q2-b"]),
+      createSingleQuestion("q3", "q3-b"),
+      createMultipleQuestion("q4", ["q4-a", "q4-c", "q4-d"]),
+      createSingleQuestion("q5", "q5-d"),
     ]);
     const answers = createAnswers({
-      q1: ['q1-a'],
-      q2: ['q2-a'],
-      q3: ['q3-b'],
-      q4: ['q4-a', 'q4-c'],
-      q5: ['q5-d'],
+      q1: ["q1-a"],
+      q2: ["q2-a"],
+      q3: ["q3-b"],
+      q4: ["q4-a", "q4-c"],
+      q5: ["q5-d"],
     });
     const expectedScore = scoreQuiz(quiz, answers);
     const repository = new KnexQuizSessionRepository(databaseConnection);
@@ -99,7 +109,7 @@ describe('run quiz session integration', () => {
       source_title: string | null;
       source_url: string;
       total_question_count: number;
-    }>('quiz_sessions').first();
+    }>("quiz_sessions").first();
     const answerRows = await databaseConnection<{
       correct_option_ids_json: string;
       points_awarded: number;
@@ -109,14 +119,15 @@ describe('run quiz session integration', () => {
       selected_option_ids_json: string;
       session_id: string;
       weight_applied: number;
-    }>('quiz_answers')
-      .orderBy('question_order', 'asc');
+    }>("quiz_answers").orderBy("question_order", "asc");
 
     expect(completed.finalScore).toBe(expectedScore.finalScore);
-    expect(completed.questionResults.map((result) => result.questionOrder)).toEqual([1, 2, 3, 4, 5]);
-    expect(completed.questionResults.map((result) => result.weightApplied)).toEqual(
-      getQuestionWeights(quiz.questions.length),
-    );
+    expect(
+      completed.questionResults.map((result) => result.questionOrder),
+    ).toEqual([1, 2, 3, 4, 5]);
+    expect(
+      completed.questionResults.map((result) => result.weightApplied),
+    ).toEqual(getQuestionWeights(quiz.questions.length));
     expect(sessionRow).toEqual({
       created_at: completed.createdAt,
       final_score: expectedScore.finalScore,
@@ -130,59 +141,81 @@ describe('run quiz session integration', () => {
     expect(answerRows.map((row) => row.session_id)).toEqual(
       Array.from({ length: quiz.questions.length }, () => completed.sessionId),
     );
-    expect(answerRows.map((row) => row.question_order)).toEqual([1, 2, 3, 4, 5]);
-    expect(answerRows.map((row) => row.question_id)).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
-    expect(answerRows.map((row) => row.weight_applied)).toEqual(getQuestionWeights(5));
+    expect(answerRows.map((row) => row.question_order)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
+    expect(answerRows.map((row) => row.question_id)).toEqual([
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+    ]);
+    expect(answerRows.map((row) => row.weight_applied)).toEqual(
+      getQuestionWeights(5),
+    );
     expect(answerRows[1]?.points_awarded).toBe(2);
     expect(answerRows[3]?.points_awarded).toBe(8 / 3);
-    expect(answerRows[3]?.question_text_snapshot).toBe('Prompt for q4');
-    expect(JSON.parse(answerRows[3]!.correct_option_ids_json)).toEqual(['q4-a', 'q4-c', 'q4-d']);
-    expect(JSON.parse(answerRows[3]!.selected_option_ids_json)).toEqual(['q4-a', 'q4-c']);
+    expect(answerRows[3]?.question_text_snapshot).toBe("Prompt for q4");
+    expect(JSON.parse(answerRows[3]!.correct_option_ids_json)).toEqual([
+      "q4-a",
+      "q4-c",
+      "q4-d",
+    ]);
+    expect(JSON.parse(answerRows[3]!.selected_option_ids_json)).toEqual([
+      "q4-a",
+      "q4-c",
+    ]);
   });
 
   it.each([
     [
-      'fetch failure',
+      "fetch failure",
       {
         fetchMarkdown: vi.fn().mockRejectedValue(
           new MarkdownIngestionError({
-            code: 'timeout',
-            message: 'Source request exceeded the timeout',
-            url: 'https://github.com/acme/docs/blob/main/guide.md',
+            code: "timeout",
+            message: "Source request exceeded the timeout",
+            url: "https://github.com/acme/docs/blob/main/guide.md",
           }),
         ),
         quizGenerator: { generate: vi.fn() },
       },
     ],
     [
-      'generation failure',
+      "generation failure",
       {
         fetchMarkdown: vi.fn().mockResolvedValue({
           chunkCount: 1,
-          markdown: '# Guide',
-          normalizedUrl: 'https://raw.githubusercontent.com/acme/docs/main/guide.md',
+          markdown: "# Guide",
+          normalizedUrl:
+            "https://raw.githubusercontent.com/acme/docs/main/guide.md",
           originalCharacters: 7,
-          originalUrl: 'https://github.com/acme/docs/blob/main/guide.md',
+          originalUrl: "https://github.com/acme/docs/blob/main/guide.md",
           retainedCharacters: 7,
-          title: 'Guide',
+          title: "Guide",
           wasTruncated: false,
         }),
         quizGenerator: {
           generate: vi
             .fn()
             .mockRejectedValue(
-              new QuizGenerationValidationError('Schema validation failed', 2, ['questions']),
+              new QuizGenerationValidationError("Schema validation failed", 2, [
+                "questions",
+              ]),
             ),
         },
       },
     ],
-  ])('stops before any persistence on %s', async (_label, failureCase) => {
+  ])("stops before any persistence on %s", async (_label, failureCase) => {
     const databaseConnection = database;
 
     expect(databaseConnection).toBeDefined();
 
     if (!databaseConnection) {
-      throw new Error('Expected SQLite database to be initialized for the test');
+      throw new Error(
+        "Expected SQLite database to be initialized for the test",
+      );
     }
 
     const repository = new KnexQuizSessionRepository(databaseConnection);
@@ -193,14 +226,18 @@ describe('run quiz session integration', () => {
     });
 
     await expect(
-      runQuizSession.prepare('https://github.com/acme/docs/blob/main/guide.md'),
+      runQuizSession.prepare("https://github.com/acme/docs/blob/main/guide.md"),
     ).rejects.toBeInstanceOf(RunQuizSessionError);
 
-    const sessionCountRow = await databaseConnection<{ count: number }>('quiz_sessions')
-      .count<{ count: number }>({ count: '*' })
+    const sessionCountRow = await databaseConnection<{ count: number }>(
+      "quiz_sessions",
+    )
+      .count<{ count: number }>({ count: "*" })
       .first();
-    const answerCountRow = await databaseConnection<{ count: number }>('quiz_answers')
-      .count<{ count: number }>({ count: '*' })
+    const answerCountRow = await databaseConnection<{ count: number }>(
+      "quiz_answers",
+    )
+      .count<{ count: number }>({ count: "*" })
       .first();
 
     expect(Number(sessionCountRow?.count ?? 0)).toBe(0);

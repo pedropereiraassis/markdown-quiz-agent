@@ -1,32 +1,36 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
-import type { Knex } from 'knex';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Knex } from "knex";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createPersistenceKnex,
   destroyPersistenceKnex,
   migrateToLatest,
-} from '../../src/infrastructure/persistence/knex.js';
+} from "../../src/infrastructure/persistence/knex.js";
 import {
   KnexQuizSessionRepository,
   type PersistQuizSessionInput,
-} from '../../src/infrastructure/persistence/quiz-session-repository.js';
+} from "../../src/infrastructure/persistence/quiz-session-repository.js";
 import {
   createMultipleQuestion,
   createSingleQuestion,
-} from '../support/quiz-fixtures.js';
+} from "../support/quiz-fixtures.js";
 
 function createPersistQuizSessionInput(): PersistQuizSessionInput {
-  const singleQuestion = createSingleQuestion('q1');
-  const multipleQuestion = createMultipleQuestion('q2', ['q2-a', 'q2-b', 'q2-d']);
+  const singleQuestion = createSingleQuestion("q1");
+  const multipleQuestion = createMultipleQuestion("q2", [
+    "q2-a",
+    "q2-b",
+    "q2-d",
+  ]);
 
   return {
-    sourceUrl: 'https://example.com/guide.md',
-    normalizedSourceUrl: 'https://example.com/guide.md',
-    sourceTitle: 'Guide',
+    sourceUrl: "https://example.com/guide.md",
+    normalizedSourceUrl: "https://example.com/guide.md",
+    sourceTitle: "Guide",
     totalQuestionCount: 2,
     finalScore: 2.612345678901234,
     answers: [
@@ -37,7 +41,7 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
         questionTextSnapshot: singleQuestion.prompt,
         optionSnapshot: singleQuestion.options,
         correctOptionIds: singleQuestion.correctOptionIds,
-        selectedOptionIds: ['q1-a'],
+        selectedOptionIds: ["q1-a"],
         pointsAwarded: 4,
         weightApplied: 1,
       },
@@ -48,7 +52,7 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
         questionTextSnapshot: multipleQuestion.prompt,
         optionSnapshot: multipleQuestion.options,
         correctOptionIds: multipleQuestion.correctOptionIds,
-        selectedOptionIds: ['q2-a', 'q2-d'],
+        selectedOptionIds: ["q2-a", "q2-d"],
         pointsAwarded: 8 / 3,
         weightApplied: 1.2100000000000002,
       },
@@ -56,13 +60,17 @@ function createPersistQuizSessionInput(): PersistQuizSessionInput {
   };
 }
 
-describe('SQLite persistence integration', () => {
+describe("SQLite persistence integration", () => {
   let database: Knex | undefined;
   let databaseDirectory: string | undefined;
 
   beforeEach(async () => {
-    databaseDirectory = await mkdtemp(path.join(tmpdir(), 'markdown-quiz-agent-'));
-    database = await createPersistenceKnex(path.join(databaseDirectory, 'quiz.sqlite'));
+    databaseDirectory = await mkdtemp(
+      path.join(tmpdir(), "markdown-quiz-agent-"),
+    );
+    database = await createPersistenceKnex(
+      path.join(databaseDirectory, "quiz.sqlite"),
+    );
     await migrateToLatest(database);
   });
 
@@ -76,49 +84,54 @@ describe('SQLite persistence integration', () => {
     }
   });
 
-  it('creates the quiz_sessions and quiz_answers tables with the expected columns', async () => {
+  it("creates the quiz_sessions and quiz_answers tables with the expected columns", async () => {
     const databaseConnection = database;
 
     expect(databaseConnection).toBeDefined();
 
     if (!databaseConnection) {
-      throw new Error('Expected SQLite database to be initialized for the test');
+      throw new Error(
+        "Expected SQLite database to be initialized for the test",
+      );
     }
 
-    const sessionColumns = await databaseConnection('quiz_sessions').columnInfo();
-    const answerColumns = await databaseConnection('quiz_answers').columnInfo();
+    const sessionColumns =
+      await databaseConnection("quiz_sessions").columnInfo();
+    const answerColumns = await databaseConnection("quiz_answers").columnInfo();
 
     expect(Object.keys(sessionColumns).sort()).toEqual([
-      'created_at',
-      'final_score',
-      'id',
-      'normalized_source_url',
-      'source_title',
-      'source_url',
-      'total_question_count',
+      "created_at",
+      "final_score",
+      "id",
+      "normalized_source_url",
+      "source_title",
+      "source_url",
+      "total_question_count",
     ]);
     expect(Object.keys(answerColumns).sort()).toEqual([
-      'correct_option_ids_json',
-      'id',
-      'option_snapshot_json',
-      'points_awarded',
-      'question_id',
-      'question_order',
-      'question_text_snapshot',
-      'question_type',
-      'selected_option_ids_json',
-      'session_id',
-      'weight_applied',
+      "correct_option_ids_json",
+      "id",
+      "option_snapshot_json",
+      "points_awarded",
+      "question_id",
+      "question_order",
+      "question_text_snapshot",
+      "question_type",
+      "selected_option_ids_json",
+      "session_id",
+      "weight_applied",
     ]);
   });
 
-  it('persists a full session and linked answer snapshots in question order without rounding numeric values', async () => {
+  it("persists a full session and linked answer snapshots in question order without rounding numeric values", async () => {
     const databaseConnection = database;
 
     expect(databaseConnection).toBeDefined();
 
     if (!databaseConnection) {
-      throw new Error('Expected SQLite database to be initialized for the test');
+      throw new Error(
+        "Expected SQLite database to be initialized for the test",
+      );
     }
 
     const input = createPersistQuizSessionInput();
@@ -133,7 +146,7 @@ describe('SQLite persistence integration', () => {
       total_question_count: number;
       final_score: number;
       created_at: string;
-    }>('quiz_sessions')
+    }>("quiz_sessions")
       .where({ id: savedSession.sessionId })
       .first();
     const answerRows = await databaseConnection<{
@@ -148,9 +161,9 @@ describe('SQLite persistence integration', () => {
       selected_option_ids_json: string;
       points_awarded: number;
       weight_applied: number;
-    }>('quiz_answers')
+    }>("quiz_answers")
       .where({ session_id: savedSession.sessionId })
-      .orderBy('question_order', 'asc');
+      .orderBy("question_order", "asc");
 
     expect(sessionRow).toEqual({
       id: savedSession.sessionId,
@@ -168,12 +181,14 @@ describe('SQLite persistence integration', () => {
       savedSession.sessionId,
     ]);
     expect(answerRows.map((row) => row.question_order)).toEqual([1, 2]);
-    expect(answerRows.map((row) => row.question_id)).toEqual(['q1', 'q2']);
+    expect(answerRows.map((row) => row.question_id)).toEqual(["q1", "q2"]);
     expect(answerRows[0]?.points_awarded).toBe(4);
     expect(answerRows[1]?.points_awarded).toBe(8 / 3);
     expect(answerRows[1]?.weight_applied).toBe(1.2100000000000002);
-    expect(answerRows[1]?.question_text_snapshot).toBe('Prompt for q2');
-    expect(JSON.parse(answerRows[1]!.option_snapshot_json)).toEqual(input.answers[1]?.optionSnapshot);
+    expect(answerRows[1]?.question_text_snapshot).toBe("Prompt for q2");
+    expect(JSON.parse(answerRows[1]!.option_snapshot_json)).toEqual(
+      input.answers[1]?.optionSnapshot,
+    );
     expect(JSON.parse(answerRows[1]!.correct_option_ids_json)).toEqual(
       input.answers[1]?.correctOptionIds,
     );

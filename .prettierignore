@@ -1,0 +1,7 @@
+.agents
+.claude
+.compozy
+coverage
+node_modules
+quiz.db
+*.pdf

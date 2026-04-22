@@ -1,9 +1,9 @@
-import { loadDatabaseEnv } from '../../config/env.js';
+import { loadDatabaseEnv } from "../../config/env.js";
 import {
   createPersistenceKnex,
   destroyPersistenceKnex,
   migrateToLatest,
-} from './knex.js';
+} from "./knex.js";
 
 const databaseEnv = loadDatabaseEnv();
 const database = await createPersistenceKnex(databaseEnv.path);

@@ -8,25 +8,31 @@ import {
   select,
   spinner,
   text,
-} from '@clack/prompts';
+} from "@clack/prompts";
 
-import { FETCH_LIMITS } from '../../config/constants.js';
-import { RunQuizSessionError } from '../../application/errors.js';
+import { FETCH_LIMITS } from "../../config/constants.js";
+import { RunQuizSessionError } from "../../application/errors.js";
 import {
   QuizGenerationConfigError,
   QuizGenerationProviderError,
   QuizGenerationValidationError,
-} from '../../infrastructure/llm/errors.js';
-import { MarkdownIngestionError } from '../../infrastructure/markdown/fetch-markdown.js';
-import { CLI_DEBUG_LOGS_FLAG } from '../../infrastructure/logger.js';
-import type { PreparedQuizSession, RunQuizSession } from '../../application/run-quiz-session.js';
-import { promptForAnswers, type AnswerPromptApi } from './prompt-answers.js';
-import { promptSourceUrl, type SourceUrlPromptApi } from './prompt-source-url.js';
+} from "../../infrastructure/llm/errors.js";
+import { MarkdownIngestionError } from "../../infrastructure/markdown/fetch-markdown.js";
+import { CLI_DEBUG_LOGS_FLAG } from "../../infrastructure/logger.js";
+import type {
+  PreparedQuizSession,
+  RunQuizSession,
+} from "../../application/run-quiz-session.js";
+import { promptForAnswers, type AnswerPromptApi } from "./prompt-answers.js";
+import {
+  promptSourceUrl,
+  type SourceUrlPromptApi,
+} from "./prompt-source-url.js";
 import {
   formatSaveConfirmation,
   renderPreparedSourceSummary,
   renderResults,
-} from './render-results.js';
+} from "./render-results.js";
 
 export interface CliProgress {
   error(message: string): void;
@@ -46,6 +52,7 @@ export interface CliOutput {
 
 export interface RunCliDependencies {
   debugLogsEnabled?: boolean | undefined;
+  initialSourceUrl?: string | undefined;
   output: CliOutput;
   promptApi: AnswerPromptApi & SourceUrlPromptApi;
   providerModel?: string | undefined;
@@ -53,18 +60,18 @@ export interface RunCliDependencies {
 }
 
 export class CliCancelledError extends Error {
-  override readonly name = 'CliCancelledError';
+  override readonly name = "CliCancelledError";
 
   constructor() {
-    super('CLI input was cancelled');
+    super("CLI input was cancelled");
   }
 }
 
 class CliRenderedError extends Error {
-  override readonly name = 'CliRenderedError';
+  override readonly name = "CliRenderedError";
 
   constructor(cause?: unknown) {
-    super('CLI error already rendered', cause ? { cause } : undefined);
+    super("CLI error already rendered", cause ? { cause } : undefined);
   }
 }
 
@@ -133,66 +140,76 @@ function describeCliError(
 ): CliErrorPresentation {
   if (!(error instanceof RunQuizSessionError)) {
     return {
-      message: 'The quiz could not be completed because of an unexpected problem. Please try again.',
+      message:
+        "The quiz could not be completed because of an unexpected problem. Please try again.",
     };
   }
 
   switch (error.code) {
-    case 'invalid_source_url':
-      return { message: 'Enter a valid absolute http:// or https:// Markdown URL.' };
-    case 'source_unavailable':
+    case "invalid_source_url":
+      return {
+        message: "Enter a valid absolute http:// or https:// Markdown URL.",
+      };
+    case "source_unavailable":
       return describeSourceUnavailableError(error);
-    case 'quiz_generation_failed':
+    case "quiz_generation_failed":
       return describeQuizGenerationError(error, options);
-    case 'persistence_failed':
+    case "persistence_failed":
       return {
-        message: 'Your answers were collected, but the session could not be saved. Please try again.',
+        message:
+          "Your answers were collected, but the session could not be saved. Please try again.",
       };
-    case 'invalid_prepared_session':
-    case 'invalid_answers':
+    case "invalid_prepared_session":
+    case "invalid_answers":
       return {
-        message: 'The quiz session became invalid. Start a new quiz and try again.',
+        message:
+          "The quiz session became invalid. Start a new quiz and try again.",
       };
-    case 'unexpected_failure':
+    case "unexpected_failure":
       return {
-        message: 'The quiz could not be completed because of an unexpected problem. Please try again.',
+        message:
+          "The quiz could not be completed because of an unexpected problem. Please try again.",
       };
   }
 }
 
 export function formatStartupError(error: unknown): string {
   if (error instanceof QuizGenerationConfigError) {
-    return 'The CLI configuration is invalid. Check OPENROUTER_MODEL and try again.';
+    return "The CLI configuration is invalid. Check OPENROUTER_MODEL and try again.";
   }
 
   if (!(error instanceof Error)) {
-    return 'The CLI could not start. Check your configuration and try again.';
+    return "The CLI could not start. Check your configuration and try again.";
   }
 
   if (
-    error.message.startsWith('Invalid environment configuration:') ||
-    error.message.startsWith('Invalid database configuration:')
+    error.message.startsWith("Invalid environment configuration:") ||
+    error.message.startsWith("Invalid database configuration:")
   ) {
-    return 'The CLI configuration is incomplete. Check OPENROUTER_API_KEY, OPENROUTER_MODEL, and DATABASE_PATH.';
+    return "The CLI configuration is incomplete. Check OPENROUTER_API_KEY, OPENROUTER_MODEL, and DATABASE_PATH.";
   }
 
-  return 'The CLI could not start. Check your database path and configuration, then try again.';
+  return "The CLI could not start. Check your database path and configuration, then try again.";
 }
 
-export async function runCli(dependencies: RunCliDependencies): Promise<number> {
+export async function runCli(
+  dependencies: RunCliDependencies,
+): Promise<number> {
   const {
     debugLogsEnabled = false,
+    initialSourceUrl,
     output,
     promptApi,
     providerModel,
     runQuizSession,
   } = dependencies;
 
-  output.intro('Markdown Quiz');
+  output.intro("Markdown Quiz");
 
   try {
     const preparedSession = await prepareQuizSession({
       debugLogsEnabled,
+      initialSourceUrl,
       output,
       promptApi,
       providerModel,
@@ -203,11 +220,16 @@ export async function runCli(dependencies: RunCliDependencies): Promise<number> 
       output.info(line);
     }
 
-    output.info('Answer each question in order.');
+    output.info("Answer each question in order.");
 
-    const answers = await promptForAnswers(promptApi, preparedSession.questions);
+    const answers = await promptForAnswers(
+      promptApi,
+      preparedSession.questions,
+    );
 
-    const completeProgress = output.progress('Scoring your answers and saving the session...');
+    const completeProgress = output.progress(
+      "Scoring your answers and saving the session...",
+    );
     let completedSession;
 
     try {
@@ -215,7 +237,7 @@ export async function runCli(dependencies: RunCliDependencies): Promise<number> 
         answers,
         sessionToken: preparedSession.sessionToken,
       });
-      completeProgress.success('Quiz scored and session saved.');
+      completeProgress.success("Quiz scored and session saved.");
     } catch (error) {
       const renderedError = describeCliError(error, {
         debugLogsEnabled,
@@ -239,7 +261,7 @@ export async function runCli(dependencies: RunCliDependencies): Promise<number> 
     }
 
     if (error instanceof CliCancelledError) {
-      output.cancel('Quiz cancelled.');
+      output.cancel("Quiz cancelled.");
       return 1;
     }
 
@@ -258,15 +280,21 @@ export async function runCli(dependencies: RunCliDependencies): Promise<number> 
 async function prepareQuizSession(
   dependencies: RunCliDependencies,
 ): Promise<PreparedQuizSession> {
-  const { output, promptApi, runQuizSession } = dependencies;
+  const { initialSourceUrl, output, promptApi, runQuizSession } = dependencies;
+  const pendingSourceUrls = initialSourceUrl ? [initialSourceUrl] : [];
 
   while (true) {
-    const sourceUrl = await promptSourceUrl(promptApi);
-    const prepareProgress = output.progress('Preparing a quiz from your source...');
+    const sourceUrl =
+      pendingSourceUrls.shift() ?? (await promptSourceUrl(promptApi));
+    const prepareProgress = output.progress(
+      "Preparing a quiz from your source...",
+    );
 
     try {
       const preparedSession = await runQuizSession.prepare(sourceUrl);
-      prepareProgress.success(`Prepared ${preparedSession.questionCount} questions.`);
+      prepareProgress.success(
+        `Prepared ${preparedSession.questionCount} questions.`,
+      );
       return preparedSession;
     } catch (error) {
       if (error instanceof CliCancelledError) {
@@ -281,7 +309,7 @@ async function prepareQuizSession(
       if (isRecoverablePrepareError(error)) {
         prepareProgress.error(renderedError.message);
         renderCliHint(output, renderedError);
-        output.info('Paste another Markdown URL to try another source.');
+        output.info("Paste another Markdown URL to try another source.");
         continue;
       }
 
@@ -292,8 +320,14 @@ async function prepareQuizSession(
   }
 }
 
-function isRecoverablePrepareError(error: unknown): error is RunQuizSessionError {
-  return error instanceof RunQuizSessionError && error.stage === 'prepare';
+function isRecoverablePrepareError(
+  error: unknown,
+): error is RunQuizSessionError {
+  return (
+    error instanceof RunQuizSessionError &&
+    error.stage === "prepare" &&
+    (error.code === "invalid_source_url" || error.code === "source_unavailable")
+  );
 }
 
 function unwrapPromptResult<T>(value: T | symbol): T {
@@ -304,41 +338,46 @@ function unwrapPromptResult<T>(value: T | symbol): T {
   return value;
 }
 
-function describeSourceUnavailableError(error: RunQuizSessionError): CliErrorPresentation {
+function describeSourceUnavailableError(
+  error: RunQuizSessionError,
+): CliErrorPresentation {
   const sourceError = findCause(error, MarkdownIngestionError);
 
   if (!sourceError) {
     return {
-      message: 'The Markdown source could not be loaded. Check the URL and try again.',
+      message:
+        "The Markdown source could not be loaded. Check the URL and try again.",
     };
   }
 
   switch (sourceError.code) {
-    case 'timeout':
+    case "timeout":
       return {
         message: `The Markdown source timed out after ${FETCH_LIMITS.timeoutMs} ms. Try again or use a faster URL.`,
       };
-    case 'http_error':
+    case "http_error":
       return {
         message: sourceError.statusCode
           ? `The Markdown source returned HTTP ${sourceError.statusCode}. Check the URL and try again.`
-          : 'The Markdown source returned an HTTP error. Check the URL and try again.',
+          : "The Markdown source returned an HTTP error. Check the URL and try again.",
       };
-    case 'unsupported_content_type':
+    case "unsupported_content_type":
       return {
-        message: 'The source did not return Markdown or plain text content.',
+        message: "The source did not return Markdown or plain text content.",
       };
-    case 'response_too_large':
+    case "response_too_large":
       return {
-        message: 'The Markdown source exceeds the 1 MiB size limit.',
+        message: "The Markdown source exceeds the 1 MiB size limit.",
       };
-    case 'redirect_limit':
+    case "redirect_limit":
       return {
-        message: 'The Markdown source redirected too many times. Try a direct raw Markdown URL.',
+        message:
+          "The Markdown source redirected too many times. Try a direct raw Markdown URL.",
       };
     default:
       return {
-        message: 'The Markdown source could not be loaded. Check the URL and try again.',
+        message:
+          "The Markdown source could not be loaded. Check the URL and try again.",
       };
   }
 }
@@ -347,32 +386,42 @@ function describeQuizGenerationError(
   error: RunQuizSessionError,
   options: CliErrorOptions,
 ): CliErrorPresentation {
-  const providerModelLabel = options.providerModel ? ` (${options.providerModel})` : '';
+  const providerModelLabel = options.providerModel
+    ? ` (${options.providerModel})`
+    : "";
   const providerError = findCause(error, QuizGenerationProviderError);
 
   if (providerError) {
     const providerCauseMessage = flattenErrorMessages(providerError);
 
-    if (/no endpoints found that can handle the requested parameters/i.test(providerCauseMessage)) {
+    if (
+      /no endpoints found that can handle the requested parameters/i.test(
+        providerCauseMessage,
+      )
+    ) {
       return {
         message: `The configured OpenRouter model${providerModelLabel} cannot handle the required quiz-generation parameters.`,
         hint: buildDebugHint(
           options,
-          'Check OPENROUTER_MODEL or switch to another pinned model that supports structured output.',
+          "Check OPENROUTER_MODEL or switch to another pinned model that supports structured output.",
         ),
       };
     }
 
-    if (/\b(401|403)\b|unauthorized|forbidden|api key/i.test(providerCauseMessage)) {
+    if (
+      /\b(401|403)\b|unauthorized|forbidden|api key/i.test(providerCauseMessage)
+    ) {
       return {
-        message: 'OpenRouter rejected the quiz-generation request. Check OPENROUTER_API_KEY and model access.',
+        message:
+          "OpenRouter rejected the quiz-generation request. Check OPENROUTER_API_KEY and model access.",
         hint: buildDebugHint(options),
       };
     }
 
     if (/\b429\b|rate limit/i.test(providerCauseMessage)) {
       return {
-        message: 'OpenRouter rate-limited the quiz-generation request. Try again in a moment.',
+        message:
+          "OpenRouter rate-limited the quiz-generation request. Try again in a moment.",
         hint: buildDebugHint(options),
       };
     }
@@ -390,7 +439,7 @@ function describeQuizGenerationError(
       message: `The configured model${providerModelLabel} returned quiz data that did not match the required schema.`,
       hint: buildDebugHint(
         options,
-        'Try another pinned model if this keeps happening.',
+        "Try another pinned model if this keeps happening.",
       ),
     };
   }
@@ -399,17 +448,22 @@ function describeQuizGenerationError(
 
   if (configError) {
     return {
-      message: 'Quiz generation is misconfigured. Check OPENROUTER_MODEL and try again.',
+      message:
+        "Quiz generation is misconfigured. Check OPENROUTER_MODEL and try again.",
     };
   }
 
   return {
-    message: 'A valid quiz could not be generated from that source right now. Try again in a moment.',
+    message:
+      "A valid quiz could not be generated from that source right now. Try again in a moment.",
     hint: buildDebugHint(options),
   };
 }
 
-function buildDebugHint(options: CliErrorOptions, hintPrefix?: string): string | undefined {
+function buildDebugHint(
+  options: CliErrorOptions,
+  hintPrefix?: string,
+): string | undefined {
   if (options.debugLogsEnabled) {
     return undefined;
   }
@@ -435,12 +489,12 @@ function flattenErrorMessages(error: Error): string {
     depth += 1;
   }
 
-  return messages.join(' ');
+  return messages.join(" ");
 }
 
 function findCause<T extends Error>(
   error: Error,
-  constructor: abstract new (...args: any[]) => T,
+  constructor: abstract new (...args: never[]) => T,
 ): T | undefined {
   let current: unknown = error;
   let depth = 0;
@@ -457,7 +511,10 @@ function findCause<T extends Error>(
   return undefined;
 }
 
-function renderCliHint(output: CliOutput, renderedError: CliErrorPresentation): void {
+function renderCliHint(
+  output: CliOutput,
+  renderedError: CliErrorPresentation,
+): void {
   if (!renderedError.hint) {
     return;
   }
@@ -466,5 +523,5 @@ function renderCliHint(output: CliOutput, renderedError: CliErrorPresentation): 
 }
 
 function normalizeHintPrefix(value: string): string {
-  return value.trim().replace(/[. ]+$/u, '');
+  return value.trim().replace(/[. ]+$/u, "");
 }

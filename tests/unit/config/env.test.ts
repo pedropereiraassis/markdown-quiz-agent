@@ -1,75 +1,79 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-import { FETCH_LIMITS } from '../../../src/config/constants.js';
-import { parseDatabaseEnv, parseEnv } from '../../../src/config/env.js';
+import { FETCH_LIMITS } from "../../../src/config/constants.js";
+import { parseDatabaseEnv, parseEnv } from "../../../src/config/env.js";
 
-function createRawEnv(overrides: Partial<Record<string, string | undefined>> = {}) {
+function createRawEnv(
+  overrides: Partial<Record<string, string | undefined>> = {},
+) {
   return {
-    OPENROUTER_API_KEY: 'test-key',
-    OPENROUTER_MODEL: 'openai/gpt-4.1-mini',
-    DATABASE_PATH: './data/quiz.sqlite',
+    OPENROUTER_API_KEY: "test-key",
+    OPENROUTER_MODEL: "openai/gpt-4.1-mini",
+    DATABASE_PATH: "./data/quiz.sqlite",
     ...overrides,
   };
 }
 
-describe('parseEnv', () => {
-  it('parses valid OpenRouter and SQLite configuration', () => {
+describe("parseEnv", () => {
+  it("parses valid OpenRouter and SQLite configuration", () => {
     const env = parseEnv(createRawEnv());
 
     expect(env.provider).toEqual({
-      name: 'openrouter',
-      apiKey: 'test-key',
-      model: 'openai/gpt-4.1-mini',
+      name: "openrouter",
+      apiKey: "test-key",
+      model: "openai/gpt-4.1-mini",
     });
-    expect(env.database.path).toBe('./data/quiz.sqlite');
+    expect(env.database.path).toBe("./data/quiz.sqlite");
     expect(env.limits).toBe(FETCH_LIMITS);
   });
 
-  it('rejects a missing OpenRouter API key', () => {
-    expect(() => parseEnv(createRawEnv({ OPENROUTER_API_KEY: '   ' }))).toThrow(
+  it("rejects a missing OpenRouter API key", () => {
+    expect(() => parseEnv(createRawEnv({ OPENROUTER_API_KEY: "   " }))).toThrow(
       /OPENROUTER_API_KEY/,
     );
   });
 
-  it('rejects a missing pinned model id', () => {
-    expect(() => parseEnv(createRawEnv({ OPENROUTER_MODEL: '' }))).toThrow(
+  it("rejects a missing pinned model id", () => {
+    expect(() => parseEnv(createRawEnv({ OPENROUTER_MODEL: "" }))).toThrow(
       /OPENROUTER_MODEL/,
     );
   });
 
-  it('rejects openrouter\\/auto as an invalid model id', () => {
-    expect(() => parseEnv(createRawEnv({ OPENROUTER_MODEL: 'openrouter/auto' }))).toThrow(
-      /pinned model id/,
+  it("rejects openrouter\\/auto as an invalid model id", () => {
+    expect(() =>
+      parseEnv(createRawEnv({ OPENROUTER_MODEL: "openrouter/auto" })),
+    ).toThrow(/pinned model id/);
+  });
+
+  it("rejects an empty database path", () => {
+    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: " " }))).toThrow(
+      /DATABASE_PATH/,
     );
   });
 
-  it('rejects an empty database path', () => {
-    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: ' ' }))).toThrow(/DATABASE_PATH/);
-  });
-
-  it('rejects in-memory and directory-style database paths', () => {
-    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: ':memory:' }))).toThrow(
+  it("rejects in-memory and directory-style database paths", () => {
+    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: ":memory:" }))).toThrow(
       /SQLite file path/,
     );
-    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: './data/' }))).toThrow(
+    expect(() => parseEnv(createRawEnv({ DATABASE_PATH: "./data/" }))).toThrow(
       /SQLite file path/,
     );
   });
 });
 
-describe('parseDatabaseEnv', () => {
-  it('parses a valid database-only configuration without unrelated provider env vars', () => {
+describe("parseDatabaseEnv", () => {
+  it("parses a valid database-only configuration without unrelated provider env vars", () => {
     const database = parseDatabaseEnv({
-      DATABASE_PATH: './data/quiz.sqlite',
+      DATABASE_PATH: "./data/quiz.sqlite",
     });
 
     expect(database).toEqual({
-      path: './data/quiz.sqlite',
+      path: "./data/quiz.sqlite",
     });
   });
 
-  it('rejects an invalid database path for migration-only configuration', () => {
-    expect(() => parseDatabaseEnv({ DATABASE_PATH: ':memory:' })).toThrow(
+  it("rejects an invalid database path for migration-only configuration", () => {
+    expect(() => parseDatabaseEnv({ DATABASE_PATH: ":memory:" })).toThrow(
       /Invalid database configuration/,
     );
   });

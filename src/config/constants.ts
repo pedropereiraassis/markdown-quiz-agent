@@ -19,9 +19,9 @@ export const FETCH_LIMITS = Object.freeze({
 });
 
 export const SUPPORTED_TEXT_CONTENT_TYPES = Object.freeze([
-  'text/markdown',
-  'text/plain',
-  'text/x-markdown',
+  "text/markdown",
+  "text/plain",
+  "text/x-markdown",
 ]);
 
 export const SCORING_RULES = Object.freeze({
@@ -31,8 +31,8 @@ export const SCORING_RULES = Object.freeze({
 });
 
 export const PROVIDER_RULES = Object.freeze({
-  openRouterProvider: 'openrouter',
-  disallowedModelId: 'openrouter/auto',
+  openRouterProvider: "openrouter",
+  disallowedModelId: "openrouter/auto",
 });
 
 export const PROVIDER_LIMITS = Object.freeze({

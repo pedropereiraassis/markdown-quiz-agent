@@ -1,21 +1,23 @@
-import { SCORING_RULES } from '../../config/constants.js';
+import { SCORING_RULES } from "../../config/constants.js";
 import type {
   QuestionAnswer,
   Quiz,
   QuizQuestion,
   ScoredQuestionResult,
   ScoredQuizResult,
-} from '../quiz/types.js';
+} from "../quiz/types.js";
 
 function assertUniqueSelectionIds(selectedOptionIds: string[]): void {
   const uniqueSelections = new Set(selectedOptionIds);
 
   if (uniqueSelections.size !== selectedOptionIds.length) {
-    throw new Error('Selected option ids must be unique');
+    throw new Error("Selected option ids must be unique");
   }
 }
 
-function buildAnswerMap(answers: QuestionAnswer[]): Map<string, QuestionAnswer> {
+function buildAnswerMap(
+  answers: QuestionAnswer[],
+): Map<string, QuestionAnswer> {
   const answersByQuestionId = new Map<string, QuestionAnswer>();
 
   for (const answer of answers) {
@@ -39,7 +41,8 @@ export function scoreSingleAnswerQuestion(
 ): number {
   assertUniqueSelectionIds(selectedOptionIds);
 
-  return selectedOptionIds.length === 1 && selectedOptionIds[0] === correctOptionId
+  return selectedOptionIds.length === 1 &&
+    selectedOptionIds[0] === correctOptionId
     ? SCORING_RULES.maxPointsPerQuestion
     : 0;
 }
@@ -51,47 +54,52 @@ export function scoreMultipleAnswerQuestion(
   assertUniqueSelectionIds(selectedOptionIds);
 
   if (correctOptionIds.length === 0) {
-    throw new Error('Multiple-answer questions must define at least one correct option');
+    throw new Error(
+      "Multiple-answer questions must define at least one correct option",
+    );
   }
 
   const correctSelections = new Set(correctOptionIds);
   let matchingSelections = 0;
-  let wrongExtraSelections = 0;
 
   selectedOptionIds.forEach((selectedOptionId) => {
     if (correctSelections.has(selectedOptionId)) {
       matchingSelections += 1;
-      return;
     }
-
-    wrongExtraSelections += 1;
   });
 
   const rawScore =
-    (SCORING_RULES.maxPointsPerQuestion *
-      (matchingSelections - wrongExtraSelections)) /
+    (SCORING_RULES.maxPointsPerQuestion * matchingSelections) /
     correctSelections.size;
 
   return clampScore(rawScore);
 }
 
-export function scoreQuestion(question: QuizQuestion, selectedOptionIds: string[]): number {
-  if (question.type === 'single') {
+export function scoreQuestion(
+  question: QuizQuestion,
+  selectedOptionIds: string[],
+): number {
+  if (question.type === "single") {
     const [correctOptionId] = question.correctOptionIds;
 
     if (!correctOptionId) {
-      throw new Error(`Single-answer question "${question.id}" is missing its correct option id`);
+      throw new Error(
+        `Single-answer question "${question.id}" is missing its correct option id`,
+      );
     }
 
     return scoreSingleAnswerQuestion(correctOptionId, selectedOptionIds);
   }
 
-  return scoreMultipleAnswerQuestion(question.correctOptionIds, selectedOptionIds);
+  return scoreMultipleAnswerQuestion(
+    question.correctOptionIds,
+    selectedOptionIds,
+  );
 }
 
 export function getQuestionWeight(questionOrder: number): number {
   if (!Number.isInteger(questionOrder) || questionOrder < 1) {
-    throw new Error('Question order must be a positive integer');
+    throw new Error("Question order must be a positive integer");
   }
 
   let weight = SCORING_RULES.initialWeight;
@@ -105,13 +113,18 @@ export function getQuestionWeight(questionOrder: number): number {
 
 export function getQuestionWeights(questionCount: number): number[] {
   if (!Number.isInteger(questionCount) || questionCount < 1) {
-    throw new Error('Question count must be a positive integer');
+    throw new Error("Question count must be a positive integer");
   }
 
-  return Array.from({ length: questionCount }, (_, index) => getQuestionWeight(index + 1));
+  return Array.from({ length: questionCount }, (_, index) =>
+    getQuestionWeight(index + 1),
+  );
 }
 
-export function scoreQuiz(quiz: Quiz, answers: QuestionAnswer[]): ScoredQuizResult {
+export function scoreQuiz(
+  quiz: Quiz,
+  answers: QuestionAnswer[],
+): ScoredQuizResult {
   const answersByQuestionId = buildAnswerMap(answers);
   const questionWeights = getQuestionWeights(quiz.questions.length);
   const questionResults: ScoredQuestionResult[] = [];
@@ -147,9 +160,16 @@ export function scoreQuiz(quiz: Quiz, answers: QuestionAnswer[]): ScoredQuizResu
   };
 }
 
-export function roundScoreForDisplay(score: number, fractionDigits = 2): number {
-  if (!Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 10) {
-    throw new Error('fractionDigits must be an integer between 0 and 10');
+export function roundScoreForDisplay(
+  score: number,
+  fractionDigits = 2,
+): number {
+  if (
+    !Number.isInteger(fractionDigits) ||
+    fractionDigits < 0 ||
+    fractionDigits > 10
+  ) {
+    throw new Error("fractionDigits must be an integer between 0 and 10");
   }
 
   return Number(score.toFixed(fractionDigits));
