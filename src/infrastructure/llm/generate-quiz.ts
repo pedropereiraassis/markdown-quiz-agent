@@ -191,7 +191,7 @@ function createDefaultOpenRouterQuizModel(
   } satisfies ChatOpenRouterInput);
   const structuredModel = chatModel.withStructuredOutput(quizSchema, {
     includeRaw: true,
-    method: "jsonMode",
+    method: "jsonSchema",
   });
 
   return {
